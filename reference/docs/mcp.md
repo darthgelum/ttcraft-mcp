@@ -15,6 +15,9 @@ You need Node.js 22 or newer, a TTCraft account, and a running table in a room
 where you have **Manage table** permission. An account's normal table permissions
 still apply. The VS Code extension and a GitHub token are not required.
 
+TTCraft MCP is free and open source. Find source code, release downloads and issue
+reports in the [GitHub repository](https://github.com/darthgelum/ttcraft-mcp).
+
 ## Let your assistant set it up
 
 Copy this message into your assistant:

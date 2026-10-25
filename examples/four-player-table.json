@@ -1,0 +1,21 @@
+{
+  "id": "four-player-demo",
+  "plan": {
+    "shape": [{ "kind": "rect", "w": 2.4, "d": 1.6, "round": 0.05 }],
+    "wallHeight": 0.02,
+    "seats": { "count": 4, "hand": true },
+    "areas": [
+      { "name": "draw", "cx": -0.2, "cz": 0, "w": 0.12, "d": 0.16, "tags": ["deck"], "snap": true },
+      { "name": "discard", "cx": 0.2, "cz": 0, "w": 0.12, "d": 0.16, "tags": ["discard"], "snap": true }
+    ]
+  },
+  "templates": [
+    { "key": "token", "spec": { "name": "Score token", "category": "Demo", "kind": "chip", "tint": "#e55252" } }
+  ],
+  "objects": [
+    { "key": "deck", "name": "Draw pile", "spec": { "kind": "deck" }, "position": [-0.2, 0.1, 0] },
+    { "key": "red-token", "template": "$token", "name": "Red score token", "position": [-0.6, 0.1, 0.45] },
+    { "key": "rules", "name": "Rules", "spec": { "kind": "note", "noteText": "Draw from the deck. Place used cards in the discard area." }, "position": [0.6, 0.1, 0], "locked": true }
+  ],
+  "global_script": "function onLoad()\n  print('Four-player demo ready')\nend\n"
+}

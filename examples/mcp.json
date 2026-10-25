@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ttcraft": {
+      "command": "node",
+      "args": ["/absolute/path/to/ttcraft-mcp/dist/index.js"]
+    }
+  }
+}

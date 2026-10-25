@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "ttcraft": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/ttcraft-mcp/dist/index.js"]
+    }
+  }
+}

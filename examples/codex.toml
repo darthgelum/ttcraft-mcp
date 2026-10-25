@@ -1,0 +1,9 @@
+[mcp_servers.ttcraft]
+command = "node"
+args = ["/absolute/path/to/ttcraft-mcp/dist/index.js"]
+startup_timeout_sec = 20
+tool_timeout_sec = 300
+
+# Optional development instance:
+# [mcp_servers.ttcraft.env]
+# TTCRAFT_URL = "http://127.0.0.1:8000"

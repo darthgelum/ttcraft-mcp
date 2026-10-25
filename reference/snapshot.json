@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-10-25T17:21:10.396Z",
+  "protocolSha256": "65321d7e96569e91527a048af425f2ee47affb60e723a9eeb9eb2afe815ec07c",
+  "commands": 144,
+  "documents": [
+    "getting-started.md",
+    "mcp-setup.md",
+    "mcp.md",
+    "scripting-events.md",
+    "scripting-objects.md",
+    "scripting-players.md",
+    "scripting-recipes.md",
+    "scripting-ui.md",
+    "scripting-world.md",
+    "scripting.md",
+    "table-archives.md",
+    "table-plan.md",
+    "vscode.md"
+  ]
+}

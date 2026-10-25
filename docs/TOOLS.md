@@ -14,7 +14,7 @@
 | Events | `events_read` |
 | Native API | `commands_search`, `command_describe`, `table_command`, `batch_execute` |
 | Repeatable builds | `blueprint_apply` |
-| Files | `assets_list`, `asset_upload`, `archives_export`, `archives_import`, `modules_import` |
+| Files | `assets_list`, `asset_upload`, `archives_export`, `archives_import`, `modules_import`, `modules_options`, `modules_list`, `modules_publish` |
 | Saving | `table_save` |
 | Offline reference | `docs_search`, `docs_read` |
 
@@ -107,8 +107,9 @@ success. The server's archive importer validates the actual archive contents.
 
 `table_save` writes a named snapshot to the **table server database**. This is not
 the site's account save-slot API. `archives_export` is the portable backup path.
-This release does not add account save management, publishing or table start/stop
-endpoints to TTCraft's dev API.
+Account save management and table start/stop remain outside this release.
+Module publication uses the authenticated dev API and preserves the live table.
+See [Module publishing](MODULE-PUBLISHING.md) for listing text and media uploads.
 
 Some native operations have a direct reply, such as `scriptresult`, `libresult` or
 `tableplanresult`. Others have **no success acknowledgement**. For those, an echo

@@ -136,6 +136,24 @@ test('chunked local uploads, export protection, archive and additive module impo
     assert.equal(req.auth, 'Bearer short-token'); assert.equal('token' in req.query, false);
   }
 });
+test('module publication previews, validates and sends one authenticated multipart request with media', async () => {
+  await call('table_connect',{table_id:42});
+  const pkg=join(temp,'module.zip'), cover=join(temp,'cover.png'), shot=join(temp,'shot.webp');
+  await writeFile(pkg,Buffer.from([0x50,0x4b,3,4,1,2,3,4]));await writeFile(cover,'cover bytes');await writeFile(shot,'shot bytes');
+  const args={package_path:pkg,cover_path:cover,screenshot_paths:[shot],listing:{title:'CoC fixture',categories:['Role-playing Games'],assets:['Dice'],languages:['en']}};
+  const count=()=>mock.calls.filter(c=>c.kind==='publication').length;
+  const before=count();
+  assert.equal((await call('modules_options')).types[0],'game');
+  const preview=await call('modules_publish',args);assert.equal(preview.dry_run,true);assert.equal(count(),before);
+  assert.equal((await call('modules_publish',{...args,package_path:'relative.zip',dry_run:false})).isError,true);
+  assert.equal((await call('modules_publish',{...args,listing:{title:'bad',categories:['nonsense']},dry_run:false})).isError,true);assert.equal(count(),before);
+  const published=await call('modules_publish',{...args,dry_run:false});assert.equal(published.id,81);assert.equal(count(),before+1);
+  const request=mock.calls.find(c=>c.kind==='publication');assert.equal(request.coverName,'cover.png');assert.equal(request.screenshots,1);assert.equal(request.packageBytes,8);assert.equal(request.categories,'Role-playing Games');
+  const lost=await call('modules_publish',{...args,listing:{title:'uncertain'},dry_run:false});assert.equal(lost.isError,true);assert.match(lost.error,/unknown.*Do not retry/i);assert.equal(count(),before+2);
+  assert.equal((await call('modules_list')).modules[0].id,81);
+  assert.ok(mock.calls.filter(c=>c.path?.endsWith('/modules')&&c.kind==='http').every(c=>c.auth==='Bearer private-dev-token'));
+});
+
 test('EOF shuts down server sockets cleanly; credentials never appear in protocol results', async () => {
   const state = await call('connections_status'); assert.equal(JSON.stringify(state).includes('short-token'), false);
   assert.equal(JSON.stringify(state).includes('private-dev-token'), false);

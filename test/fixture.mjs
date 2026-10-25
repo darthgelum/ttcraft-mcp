@@ -44,6 +44,14 @@ export async function fixture() {
     if (url.pathname.startsWith('/api/dev/')) {
       if (req.headers.authorization !== 'Bearer private-dev-token') { res.statusCode = 401; return json({ error: 'unauthorized' }); }
       if (url.pathname === '/api/dev/me') return json({ user: { id: 7, username: 'тест' } });
+      if (url.pathname === '/api/dev/modules/options') return json({ types:['game'],complexities:['low'],categories:['Role-playing Games'],assets:['Dice','Scripting'],languages:['en'],play_times:[120],limits:{package_kb:65536} });
+      if (url.pathname === '/api/dev/modules') return json({modules:[{id:81,title:'Published fixture',url:baseUrl+'/modules/fixture'}],next_page:null});
+      if (url.pathname === '/api/dev/tables/42/modules' && req.method==='POST') {
+        const form=await new Response(body,{headers:{'content-type':req.headers['content-type']}}).formData();
+        calls.push({kind:'publication',title:form.get('title'),packageBytes:(await form.get('package').arrayBuffer()).byteLength,coverName:form.get('cover')?.name,screenshots:form.getAll('screenshots[]').length,categories:form.get('categories[0]')});
+        if(form.get('title')==='uncertain'){req.socket.destroy();return;}
+        return json({id:81,url:baseUrl+'/modules/fixture',edit_url:'/modules/fixture/edit',screenshots:form.getAll('screenshots[]').length});
+      }
       if (url.pathname === '/api/dev/tables') return json({ tables: [{ id: 42, running: true, room: { name: 'Room' }, channel: { slug: 'test' } }] });
       if (url.pathname === '/api/dev/tables/42/connect') return json({ table_id: 42, token: 'short-token', caps: 'owner', connection_kind: 'tool', ws_url: baseUrl.replace('http:', 'ws:') + '/ws', http_url: baseUrl, expires_in: 120 });
       res.statusCode = 404; return json({ error: 'not_found' });

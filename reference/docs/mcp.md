@@ -40,7 +40,7 @@ Install [Node.js LTS](https://nodejs.org/en/download) if needed, then open a ter
 
 ```sh
 node --version
-npm install --global https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz
+npm install --global https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
 ttcraft-mcp setup
 ```
 
@@ -53,7 +53,7 @@ On Windows, if PowerShell blocks `npm.ps1` or `ttcraft-mcp.ps1`, use `npm.cmd` a
 
 This release is distributed directly by TTCraft as a versioned npm archive.
 Use the full URL above; the unqualified npm registry name `ttcraft-mcp` is not
-the distribution channel. The [SHA-256 file](/downloads/ttcraft-mcp-0.1.1.tgz.sha256)
+the distribution channel. The [SHA-256 file](/downloads/ttcraft-mcp-0.1.2.tgz.sha256)
 is available for download verification.
 
 ### Install without administrator access
@@ -65,14 +65,14 @@ you own. Administrator access is unnecessary.
 
 ```powershell
 $mcpDir = Join-Path $HOME '.ttcraft-tools'
-npm.cmd install --prefix "$mcpDir" https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz
+npm.cmd install --prefix "$mcpDir" https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
 node "$mcpDir/node_modules/ttcraft-mcp/dist/index.js" setup
 ```
 
 **macOS or Linux:**
 
 ```sh
-npm install --prefix "$HOME/.ttcraft-tools" https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz
+npm install --prefix "$HOME/.ttcraft-tools" https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
 node "$HOME/.ttcraft-tools/node_modules/ttcraft-mcp/dist/index.js" setup
 ```
 
@@ -154,7 +154,7 @@ Give the assistant a concrete goal and any visual or gameplay constraints:
 
 > Export a backup to a local ZIP before changing the table layout.
 
-The server provides **37 MCP tools** and a searchable reference for **144 native
+The server provides **40 MCP tools** and a searchable reference for **144 native
 table commands**. The assistant discovers exact arguments from tool schemas.
 
 | Task | Tools to start with |
@@ -164,12 +164,18 @@ table commands**. The assistant discovers exact arguments from tool schemas.
 | Lua scripts and errors | `objects_list`, `script_read`, `script_write`, `console_read` |
 | Templates and media | `library_list`, `asset_upload`, `assets_list` |
 | Backups and modules | `archives_export`, `archives_import`, `modules_import` |
+| Publish a module | `modules_options`, `modules_list`, `modules_publish` |
 | Built-in documentation | `docs_search`, `docs_read` |
 
 Changes affect the shared table. Archive import replaces the current world;
 module import adds content. Export a backup before a large or destructive change.
 An assistant should inspect the state after an uncertain timeout before deciding
 what to do next, because automatically repeating a creation could duplicate it.
+
+Module publication supports listing text, a cover and up to twelve screenshots.
+Use a dry run first; publishing does not change the source table. A local clean
+package can be published instead of the live snapshot. After an uncertain network
+result, inspect `modules_list` before retrying.
 
 For table behaviour and Lua, see [scripting](/docs/scripting),
 [table plans](/docs/table-plan) and [archives](/docs/table-archives).

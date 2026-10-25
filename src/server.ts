@@ -8,6 +8,7 @@ import { Sessions, type TableSession } from './session.js';
 import { commands, commandMap, docNames, readDoc, searchDocs, type Json } from './reference.js';
 import { blueprintSchema, validateBlueprint, applyBlueprint, vec3, quat } from './blueprint.js';
 import { exportArchive, importArchive, importModules, uploadAsset } from './files.js';
+import { publicationSchema, publishModule } from './publication.js';
 import type { Config } from './config.js';
 
 const tableId = z.number().int().positive().optional().describe('Omit to use the active connected table.');
@@ -33,7 +34,7 @@ export const instructions = `TTCraft is a live shared tabletop. Start with auth_
 
 export function createServer(config: Config): { server: McpServer; auth: Auth; sessions: Sessions } {
   const auth = new Auth(config), sessions = new Sessions(auth);
-  const server = new McpServer({ name: 'ttcraft-mcp', version: '0.1.1' }, { instructions });
+  const server = new McpServer({ name: 'ttcraft-mcp', version: '0.1.2' }, { instructions });
   // Zod raw shapes keep tool schemas compatible with MCP clients that reject
   // root-level oneOf/anyOf. Tool failures are MCP isError results.
   function tool(name: string, description: string, shape: z.ZodRawShape, readOnly: boolean, run: (args: any) => Promise<unknown>, destructive = !readOnly): void {
@@ -247,6 +248,14 @@ export function createServer(config: Config): { server: McpServer; auth: Auth; s
   tool('table_save', 'Create a named snapshot in the table server database (native savetable). This is separate from TTCraft account save slots. Use archives_export for a portable backup.', {
     table_id: tableId, name: z.string().min(1).max(120),
   }, false, async a => get(a).command({ type: 'savetable', name: a.name }));
+  tool('modules_options', 'Read allowed listing fields, categories, languages and media limits for module publication.', {}, true,
+    () => auth.api('/api/dev/modules/options'));
+  tool('modules_list', 'List your own published and unlisted modules. Check this after an uncertain publication outcome before retrying.', {
+    page: z.number().int().positive().default(1),
+  }, true, a => auth.api(`/api/dev/modules?page=${a.page}`));
+  tool('modules_publish', 'Publish a module with English or localized listing text, cover and screenshots to TTCraft. Requires Manage table. Uses an absolute local ZIP, or snapshots the table including hidden contents. dry_run defaults true. Does not change the live table. Never automatically retries publication.', {
+    table_id: tableId, ...publicationSchema,
+  }, false, a => { const s = get(a); return s.exclusive(() => publishModule(auth, s, a)); });
   tool('docs_search', 'Search bundled TTCraft manual and Lua API without internet/login. Empty query lists document slugs.', { query: z.string().default('') }, true, a => searchDocs(a.query));
   tool('docs_read', 'Read a bundled TTCraft manual page with character pagination. Examples: table-plan, table-archives, scripting, scripting-world, scripting-objects, scripting-ui, scripting-events.', {
     slug: z.string(), offset: pagination.offset, max_characters: z.number().int().min(100).max(64000).default(16000),

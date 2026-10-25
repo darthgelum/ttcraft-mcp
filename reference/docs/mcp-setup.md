@@ -12,9 +12,9 @@ Use this procedure when the user asks you to install or configure TTCraft MCP.
 
 ## Release and prerequisites
 
-- **Version:** `0.1.1`.
-- **Package:** `https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz`.
-- **SHA-256:** `https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz.sha256`.
+- **Version:** `0.1.2`.
+- **Package:** `https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz`.
+- **SHA-256:** `https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz.sha256`.
 - **Runtime:** Node.js 22 or newer and npm, on Windows, macOS or Linux.
 - **Transport:** local MCP stdio, with no MCP HTTP URL.
 - **TTCraft origin:** `https://ttcraft.net` by default.
@@ -37,14 +37,14 @@ Markdown. The public documentation index is `https://ttcraft.net/llms.txt`.
 
    ```powershell
    $mcpDir = Join-Path $HOME '.ttcraft-tools'
-   npm.cmd install --prefix "$mcpDir" https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz
+   npm.cmd install --prefix "$mcpDir" https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
    node "$mcpDir/node_modules/ttcraft-mcp/dist/index.js" setup --json
    ```
 
    On macOS/Linux:
 
    ```sh
-   npm install --prefix "$HOME/.ttcraft-tools" https://ttcraft.net/downloads/ttcraft-mcp-0.1.1.tgz
+   npm install --prefix "$HOME/.ttcraft-tools" https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
    node "$HOME/.ttcraft-tools/node_modules/ttcraft-mcp/dist/index.js" setup --json
    ```
 
@@ -73,7 +73,7 @@ it must be an HTTPS origin. Plain HTTP is allowed only on loopback for developme
 
 ## Verify before making changes
 
-1. Confirm the installed executable reports `--version` as `0.1.1`, and that the
+1. Confirm the installed executable reports `--version` as `0.1.2`, and that the
    client lists `ttcraft`. Check that MCP initialization and `tools/list` succeed:
    this version exposes **37 tools**. A signed-out installation is a valid start.
 2. Call `auth_status`. If signed out, call `auth_begin`, display its verification

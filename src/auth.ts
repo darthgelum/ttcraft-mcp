@@ -150,9 +150,12 @@ export class Auth {
     return { status: this.config.token ? 'environment_token_active' : 'signed_out',
       instruction: this.config.token ? 'Remove TTCRAFT_TOKEN from the MCP client environment to sign out.' : 'Local credential removed. Revoke TTCraft MCP in Settings → Security to revoke the server token.' };
   }
-  async api<T = Record<string, unknown>>(path: string): Promise<T> {
+  async api<T = Record<string, unknown>>(path: string, init: RequestInit = {}, timeout = 30000): Promise<T> {
     const token = await this.token();
-    const res = await checkedFetch(`${this.config.baseUrl}${path}`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
+    const headers = new Headers(init.headers);
+    headers.set('authorization', `Bearer ${token}`);
+    headers.set('accept', 'application/json');
+    const res = await checkedFetch(`${this.config.baseUrl}${path}`, { ...init, headers }, timeout);
     return await res.json() as T;
   }
   async loginCli(): Promise<void> {

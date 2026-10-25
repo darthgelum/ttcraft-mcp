@@ -43,7 +43,7 @@ as successful.
 
 The intended workflow is inspect → read the relevant manual → upload resources →
 preview a blueprint → apply → inspect objects and console. A complete starter is
-[examples/four-player-table.json](examples/four-player-table.json).
+[examples/four-player-table.json](../examples/four-player-table.json).
 
 Call `blueprint_apply` with that JSON as `blueprint`. Its default `dry_run: true`
 validates the document and previews identities without changing the table. Use

@@ -35,6 +35,7 @@ export class TableSession {
 
   get connected(): boolean { return !this.failure && this.ws?.readyState === WebSocket.OPEN && Boolean(this.state.hello) && this.state.propsSeen && this.state.baselineSeen; }
   get caps(): string { return this.info?.caps || ''; }
+  get remote(): boolean { return this.auth.config.remote === true; }
   get cursor(): number { return this.sequence; }
   status(): Json { return { table_id: this.tableId, connected: this.connected, caps: this.caps, protocol: this.state.hello?.protocol,
     player_id: this.state.hello?.playerId, name: this.state.hello?.game?.name, objects: this.state.objects.size, event_cursor: this.cursor }; }
@@ -141,6 +142,7 @@ export class TableSession {
   }
   /** Call only inside exclusive() for a multi-step workflow. Never replays mutations. */
   async execute(input: Json, responseType?: string, timeout = 12000): Promise<Json> {
+    await this.auth.config.checkTableAccess?.(this.tableId);
     if (!this.connected) throw new Error('Connect to the table before issuing commands.');
     const type = String(input.type).toLowerCase();
     if (!commandMap.has(type)) throw new Error(`Unknown or unavailable command '${type}'. Use commands_search. Chat and transport commands are not exposed.`);

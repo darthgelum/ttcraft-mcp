@@ -1,7 +1,8 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export interface Config { baseUrl: string; configDir: string; token?: string; }
+export interface Config { baseUrl: string; configDir: string; token?: string; remote?: boolean;
+  checkTableAccess?: (tableId: number) => Promise<void>; }
 export function safeUrl(value: string, websocket = false): URL {
   const url = new URL(value);
   const secure = websocket ? 'wss:' : 'https:';

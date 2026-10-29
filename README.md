@@ -17,6 +17,24 @@
 
 ## The easiest way to start
 
+**Codex and Claude Desktop can connect without installing this package.**
+Add **`https://ttcraft.net/mcp`** as a remote Streamable HTTP connector and sign in
+with your TTCraft account through OAuth. Codex CLI users can run:
+
+```sh
+codex mcp add ttcraft --url https://ttcraft.net/mcp
+codex mcp login ttcraft
+```
+
+In Claude Desktop use **Connectors → Add custom connector**, enter the URL and
+choose OAuth. Both published client identities and dynamic registration are
+supported. Your existing table permissions apply, and access can be revoked in
+TTCraft **Settings → Security**. Remote file tools use your private `/workspace/`;
+`files_write` / `files_read` transfer bounded chunks. See
+[remote hosting](docs/REMOTE.md) for deployment and limits.
+
+### Local filesystem workflows
+
 Give your assistant this message:
 
 > Set up TTCraft MCP using https://ttcraft.net/docs/mcp-setup.md . Install it on this computer and configure this client, preserving my existing MCP servers. Verify that the tools load, help me sign in through the browser, then list my running tables. Ask me which table to use before changing anything.
@@ -80,7 +98,7 @@ and [table plans](https://ttcraft.net/docs/table-plan).
 - **Your permissions still apply.** MCP follows your account permissions and table rules.
 - **Tables must be running.** Start them from the room page. Practice/tutorial tables are excluded.
 - **Browser and agents coexist.** Several agents can connect; coordinate edits to the same scripts or objects. Older instances need a saved restart onto a server with tool-session support. MCP refuses them before connecting.
-- **Local clients only.** This is a stdio server, not an HTTP connector for web-only chats. Over SSH or in a container, install it where the assistant runs.
+- **Two transports.** The hosted OAuth connector uses HTTPS; local filesystem workflows can use stdio. Over SSH or in a container, install the stdio package where the assistant runs.
 - **Login can be revoked.** Use TTCraft **Settings → Security** to revoke the device. `ttcraft-mcp logout` removes the local credential.
 
 ## Troubleshooting

@@ -1,6 +1,6 @@
 ---
 title: Build tables with an AI agent
-description: Install TTCraft MCP for Claude Code, Codex and other local MCP clients. Sign in, build a table and watch the result live in your browser.
+description: Connect Codex or Claude Desktop to TTCraft over HTTPS with OAuth, or use the local MCP server for filesystem workflows.
 order: 36
 section: Table scripting
 toc: true
@@ -10,15 +10,77 @@ toc: true
 build a game, arrange pieces, make cards, add assets, write Lua or inspect a broken
 script. Keep the table open in your browser to see its work as it happens.
 
-It works with **Claude Code, Codex and other clients that run local MCP servers**.
-You need Node.js 22 or newer, a TTCraft account, and a running table in a room
+It works with **Codex and Claude Desktop over HTTPS without a local install**.
+You need a TTCraft account and a running table in a room
 where you have **Manage table** permission. An account's normal table permissions
 still apply. The VS Code extension and a GitHub token are not required.
+
+## Connect without installing anything
+
+Server URL: **`https://ttcraft.net/mcp`**. Transport: **Streamable HTTP**.
+Authentication: **OAuth**, using your TTCraft account.
+
+### Codex
+
+Add a Streamable HTTP server in MCP settings, using the URL above, then choose
+Authenticate. From the Codex CLI the equivalent is:
+
+```sh
+codex mcp add ttcraft --url https://ttcraft.net/mcp
+codex mcp login ttcraft
+```
+
+### Claude Desktop
+
+Open **Customize → Connectors → Add → Add custom connector** (or
+**Settings → Connectors** in older layouts). Name it **TTCraft**, enter the server
+URL, and choose **Sign in now**. For OAuth client identity, use **Claude's
+published identity** or **Register automatically**. Approve access in your
+TTCraft browser session. On Team and Enterprise, an organization owner may need
+to add the connector first. Remote connectors belong in Connectors, not in
+`claude_desktop_config.json`.
+
+See the official [Codex MCP guide](https://developers.openai.com/codex/mcp) and
+[Claude connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)
+for client-specific settings.
+
+### Approve and choose a table
+
+Sign in on TTCraft's browser page, review the named client and approve. The AI
+client handles access tokens and renewal; never paste tokens into a conversation.
+Ask the assistant to list your tables, select the intended one, and inspect it
+before editing. Revoking **Remote MCP** in **Settings → Security** ends access.
+System administrator status does not grant extra group or table rights.
+
+Remote file operations use a private `/workspace/` rather than your computer's
+filesystem. `files_write` stages base64 chunks (up to 1 MiB per request, 64 MiB
+per file); `files_read` retrieves chunks. Existing script, asset, archive and
+module tools accept these paths. Larger archives and local-disk workflows can
+still use the local stdio server below. The hosted workspace has a 256 MiB
+storage budget; paths and files are isolated by TTCraft account.
+
+The gateway rechecks OAuth and table permission before calls, including cached
+state reads. A permission change can require an explicit table reconnect.
+Neither connecting nor restarting MCP closes the shared game table.
+
+### Try it
+
+> List my running TTCraft tables. Ask which one to use, connect to it, and
+> describe the scene and available scripting tools before changing anything.
+
+If no tables appear, open a table in TTCraft and check your **Manage table**
+permission in its room. If authorization was revoked or expired, authenticate
+the connector again. A **401** when opening `/mcp` directly in a browser is
+expected: this is an authenticated protocol endpoint, not a web page.
+
+To disconnect, remove the connector from your AI client and revoke its
+**Remote MCP** entry in TTCraft **Settings → Security**. Removing the client
+entry alone does not revoke the server-side grant.
 
 TTCraft MCP is free and open source. Find source code, release downloads and issue
 reports in the [GitHub repository](https://github.com/darthgelum/ttcraft-mcp).
 
-## Let your assistant set it up
+## Local installation with your assistant
 
 Copy this message into your assistant:
 

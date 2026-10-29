@@ -3,6 +3,7 @@ import { createWriteStream, constants } from 'node:fs';
 import { dirname, basename, extname, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
+import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { checkedFetch, safeUrl } from './config.js';
 import type { TableSession } from './session.js';
@@ -81,7 +82,12 @@ export async function exportArchive(session: TableSession, path: string, overwri
   try {
     const response = await tableHttp(session, '/export.zip', {}, 180000);
     if (!response.body) throw new Error('Empty archive response.');
-    await pipeline(Readable.fromWeb(response.body as any), createWriteStream(tmp, { flags: 'wx', mode: 0o600 }));
+    let bytes = 0;
+    const limit = new Transform({ transform(chunk, _encoding, callback) {
+      bytes += chunk.length;
+      callback(session.remote && bytes > 64 * 1024 * 1024 ? new Error('Remote archive limit is 64 MiB; use the TTCraft browser for larger exports.') : null, chunk);
+    } });
+    await pipeline(Readable.fromWeb(response.body as any), limit, createWriteStream(tmp, { flags: 'wx', mode: 0o600 }));
     const header = await open(tmp, 'r');
     try {
       const sig = Buffer.alloc(4); await header.read(sig, 0, 4, 0);

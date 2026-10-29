@@ -384,6 +384,9 @@ A `tablet` object shows a UI document (pages of labels, values, lists). Scripts 
 
 ```lua
 tab:setElementText("title", "Round 3")
+-- Table-authored scripts may migrate their own document without losing state.
+local document = tab:getTabletDocument()
+tab:setTabletDocument(document)
 tab:setElementValue("score", 42)      / tab:getElementValue("score")
 tab:setElementTooltip("score", "VP")  / tab:getElementTooltip("score")
 tab:setListEntries("log", { "Alice: 3", "Bob: 5" })

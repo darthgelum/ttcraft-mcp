@@ -4,9 +4,25 @@ import { fileURLToPath } from 'node:url';
 import { configFromEnv } from './config.js';
 import { createServer } from './server.js';
 import { Auth } from './auth.js';
+import { createRemoteGateway } from './remote.js';
 
 async function main(): Promise<void> {
   const command = process.argv[2] || 'serve';
+  if (command === 'serve-http') {
+    const base = configFromEnv();
+    if (process.env.TTCRAFT_TOKEN) throw new Error('Do not configure a shared TTCRAFT_TOKEN for the remote gateway.');
+    const gateway = createRemoteGateway({resource:process.env.MCP_RESOURCE_URL || base.baseUrl+'/mcp',
+      apiOrigin:base.baseUrl,introspectionUrl:process.env.MCP_INTROSPECTION_URL || base.baseUrl+'/internal/mcp/introspect',
+      gatewaySecret:process.env.MCP_GATEWAY_SECRET || '', dataDir:process.env.MCP_DATA_DIR || '/data',
+      allowedOrigins:(process.env.MCP_ALLOWED_ORIGINS || base.baseUrl).split(',').map(s=>s.trim()),
+    });
+    const port = Number(process.env.PORT || 8090);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT.');
+    gateway.http.listen(port,process.env.HOST || '127.0.0.1',()=>process.stderr.write('TTCraft MCP HTTP gateway ready\n'));
+    const stop=()=>{void gateway.close().finally(()=>{process.exitCode=0;});};
+    process.once('SIGINT',stop);process.once('SIGTERM',stop);
+    return;
+  }
   if (['--help', '-h', 'help'].includes(command)) {
     process.stdout.write(`ttcraft-mcp 0.1.2\n\nUsage: ttcraft-mcp [serve|login|logout|status|setup]\n\nserve   Start the MCP stdio server (default; stdout is protocol only)\nlogin   Print browser approval URL/code and wait for sign-in\nlogout  Remove local credentials (revoke the device in TTCraft Settings → Security)\nstatus  Check the current identity\nsetup   Print copyable Claude Code/Codex/client configuration\n\nEnvironment:\n  TTCRAFT_URL         Origin (default https://ttcraft.net; loopback HTTP allowed)\n  TTCRAFT_CONFIG_DIR  Login/build storage (default ~/.ttcraft-mcp)\n  TTCRAFT_TOKEN       Optional explicit token override; never printed\n\nNode.js >=22 required. No VS Code extension or API key required.\n`);
     return;

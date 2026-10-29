@@ -1,6 +1,6 @@
 ---
 title: TTCraft MCP setup for agents
-description: A complete installation and verification procedure for an assistant configuring TTCraft MCP on the user's computer.
+description: Connect an assistant to hosted TTCraft MCP with OAuth, or install the local server when local filesystem access is needed.
 order: 38
 section: Table scripting
 toc: true
@@ -10,7 +10,28 @@ This page is a self-contained installation procedure for a coding assistant.
 For the human walkthrough, see [Build tables with an AI agent](/docs/mcp).
 Use this procedure when the user asks you to install or configure TTCraft MCP.
 
-## Release and prerequisites
+## Prefer the remote connector
+
+Unless the user explicitly needs local filesystem access, configure the remote
+Streamable HTTP endpoint **`https://ttcraft.net/mcp`**. No Node.js, npm package,
+Docker container or local bridge is required.
+
+- Codex: add the URL in MCP settings and authenticate, or run
+  `codex mcp add ttcraft --url https://ttcraft.net/mcp` followed by
+  `codex mcp login ttcraft`.
+- Claude Desktop: add a custom connector under Connectors with this URL and
+  OAuth. Use the published Claude identity or automatic registration.
+- Preserve the client's other servers. Do not install the local package or
+  start device-code login for a remote connection. The human approves OAuth in
+  their browser; never request or print credentials.
+- Verify initialization and `tools/list`, call `auth_status`, then `tables_list`.
+  Ask the user which table to connect before changing anything.
+- File tools use the account's private `/workspace/`. Use `files_write` and
+  `files_read` to transfer bounded base64 chunks, then existing tools with these
+  paths. An absolute path on the user's computer is not accessible remotely.
+- If the client cannot use remote MCP, continue with the local procedure below.
+
+## Local release and prerequisites
 
 - **Version:** `0.1.2`.
 - **Package:** `https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz`.

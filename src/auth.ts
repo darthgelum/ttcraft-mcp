@@ -56,6 +56,7 @@ export class Auth {
   }
 
   async begin(openBrowser = false): Promise<unknown> {
+    if (this.config.remote) throw new Error('Sign in using the OAuth connection settings of your MCP client.');
     if (this.config.token) throw new Error('TTCRAFT_TOKEN overrides stored credentials. Remove it before interactive sign-in.');
     this.pending = undefined;
     await this.polling?.catch(() => {});
@@ -85,6 +86,7 @@ export class Auth {
   }
 
   async poll(): Promise<unknown> {
+    if (this.config.remote) return this.status();
     this.polling ??= this.doPoll().finally(() => { this.polling = undefined; });
     return this.polling;
   }
@@ -142,6 +144,7 @@ export class Auth {
     }
   }
   async logout(): Promise<unknown> {
+    if (this.config.remote) return { status: 'oauth_managed', instruction: 'Disconnect this connector in your MCP client, or revoke its access in TTCraft Settings → Security.' };
     this.pending = undefined;
     await this.polling?.catch(() => {});
     this.credential = undefined;

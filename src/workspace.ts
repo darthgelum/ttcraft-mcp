@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 const MAX_FILE = 64 * 1024 * 1024, MAX_TOTAL = 256 * 1024 * 1024;
 const queues = new Map<string, Promise<unknown>>();
 export class Workspace {
+  private canonicalRoot?: string;
   constructor(readonly root: string) {}
   async path(value: string): Promise<string> {
     if (!value.startsWith('/workspace/') || value.includes('\\') || value.includes('\0')) throw new Error('Use a path under /workspace/.');
@@ -12,6 +13,7 @@ export class Workspace {
       || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p) || !/^[\p{L}\p{N}_. -]{1,160}$/u.test(p))) throw new Error('Invalid workspace path.');
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     const root = await realpath(this.root);
+    this.canonicalRoot = root;
     let path = root;
     for (const [i, part] of parts.entries()) {
       path = join(path, part);
@@ -48,26 +50,33 @@ export class Workspace {
   output(value: unknown): unknown {
     if (typeof value === 'string') {
       if (isAbsolute(value)) {
-        const rel = relative(resolve(this.root), resolve(value));
-        if (rel === '') return '/workspace';
-        if (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) return `/workspace/${rel.split(sep).join('/')}`;
+        for (const root of this.roots()) {
+          const rel = relative(resolve(root), resolve(value));
+          if (rel === '') return '/workspace';
+          if (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) return `/workspace/${rel.split(sep).join('/')}`;
+        }
       }
+      let text = value;
       // Paths can also appear inside structured error text. Match separators
       // and casing as Windows may canonicalize the filesystem path differently.
-      const root = this.root.split(/[\\/]/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\\\/]');
-      if (!root) return value;
-      const pattern = new RegExp(root, process.platform === 'win32' ? 'gi' : 'g');
-      return value.replace(pattern, (match, offset) => {
-        const next = value[offset + match.length], after = value[offset + match.length + 1];
-        const closing = ['"', "'", '`', ')', ']', '}'];
-        const terminalPunctuation = '.,;:!?'.includes(next || '') && (!after || /\s/.test(after) || closing.includes(after));
-        return next === undefined || next === '/' || next === '\\' || /\s/.test(next) || closing.includes(next) || terminalPunctuation ? '/workspace' : match;
-      });
+      for (const base of this.roots()) {
+        const root = base.split(/[\\/]/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\\\/]');
+        if (!root) continue;
+        const pattern = new RegExp(root, process.platform === 'win32' ? 'gi' : 'g');
+        text = text.replace(pattern, (match: string, offset: number) => {
+          const next = text[offset + match.length], after = text[offset + match.length + 1];
+          const closing = ['"', "'", '`', ')', ']', '}'];
+          const terminalPunctuation = '.,;:!?'.includes(next || '') && (!after || /\s/.test(after) || closing.includes(after));
+          return next === undefined || next === '/' || next === '\\' || /\s/.test(next) || closing.includes(next) || terminalPunctuation ? '/workspace' : match;
+        });
+      }
+      return text;
     }
     if (Array.isArray(value)) return value.map(v => this.output(v));
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,this.output(v)]));
     return value;
   }
+  private roots(): string[] { return [...new Set([this.root, this.canonicalRoot].filter((root): root is string => !!root))]; }
   async write(path: string, base64: string, offset = 0): Promise<unknown> {
     const previous = queues.get(this.root) ?? Promise.resolve();
     const job = previous.catch(() => {}).then(async () => {

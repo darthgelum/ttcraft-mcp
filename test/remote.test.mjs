@@ -80,6 +80,12 @@ test('bounded private file transfer and existing script/file tools without host 
  }
  const workspace=new Workspace(join(temp,'link-test'));await workspace.path('/workspace/placeholder');
  const privatePath=await workspace.path('/workspace/read.lua');
+ const canonicalTarget=await mkdtemp(join(temp,'canonical-target-')),workspaceAlias=join(temp,'workspace-alias');
+ await symlink(canonicalTarget,workspaceAlias,process.platform==='win32'?'junction':'dir');
+ const aliasedWorkspace=new Workspace(workspaceAlias),canonicalPath=await aliasedWorkspace.path('/workspace/read.lua');
+ assert.notEqual(canonicalPath,join(workspaceAlias,'read.lua'),'path resolution follows the configured workspace alias');
+ assert.equal(aliasedWorkspace.output(canonicalPath),'/workspace/read.lua','canonical absolute paths are redacted');
+ assert.equal(aliasedWorkspace.output(`stored at '${canonicalPath.replaceAll('\\','/')}'`),"stored at '/workspace/read.lua'",'embedded canonical paths are redacted');
  const posixWorkspace=new Workspace('/tmp/ttcraft-private');
  assert.equal(posixWorkspace.output('stored at /tmp/ttcraft-private/read.lua'),'stored at /workspace/read.lua','embedded POSIX paths retain one leading slash');
  assert.equal(posixWorkspace.output("directory '/tmp/ttcraft-private' missing"),"directory '/workspace' missing",'quoted workspace roots are redacted');

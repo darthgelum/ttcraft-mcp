@@ -79,6 +79,19 @@ test('bounded private file transfer and existing script/file tools without host 
   assert.equal((await call(alice,'script_read',{target:'global',output_path:path})).isError,true);
  }
  const workspace=new Workspace(join(temp,'link-test'));await workspace.path('/workspace/placeholder');
+ const privatePath=await workspace.path('/workspace/read.lua');
+ const posixWorkspace=new Workspace('/tmp/ttcraft-private');
+ assert.equal(posixWorkspace.output('stored at /tmp/ttcraft-private/read.lua'),'stored at /workspace/read.lua','embedded POSIX paths retain one leading slash');
+ assert.equal(posixWorkspace.output("directory '/tmp/ttcraft-private' missing"),"directory '/workspace' missing",'quoted workspace roots are redacted');
+ assert.equal(posixWorkspace.output('directory (/tmp/ttcraft-private) missing'),'directory (/workspace) missing','parenthesized workspace roots are redacted');
+ assert.equal(posixWorkspace.output('stored at /tmp/ttcraft-private-other/read.lua'),'stored at /tmp/ttcraft-private-other/read.lua','a sibling path sharing the root prefix is not redacted');
+ assert.equal(posixWorkspace.output('path /tmp/ttcraft-private/read.lua literal\\n'),'path /workspace/read.lua literal\\n','unrelated backslashes in surrounding text are preserved');
+ if(process.platform!=='win32') assert.equal(posixWorkspace.output('stored at /TMP/ttcraft-private/read.lua'),'stored at /TMP/ttcraft-private/read.lua','POSIX path redaction preserves case sensitivity');
+ if(process.platform==='win32') {
+  const caseVariant=`stored at ${workspace.root.toUpperCase().replaceAll('\\','/')}/read.lua`;
+  assert.notEqual(caseVariant,`stored at ${privatePath}`,'test a canonicalized Windows path with different casing and separators');
+  assert.equal(workspace.output(caseVariant),'stored at /workspace/read.lua','embedded Windows paths redact case-insensitively and normalize separators');
+ }
  const outside=join(temp,'secret.txt');await writeFile(outside,'PRIVATE');
  try{await symlink(outside,join(workspace.root,'link'));await assert.rejects(workspace.read('/workspace/link'),/links/);}catch(e){if(e.code!=='EPERM')throw e;}
 });

@@ -1,5 +1,5 @@
 import { mkdir, lstat, open, readdir, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const MAX_FILE = 64 * 1024 * 1024, MAX_TOTAL = 256 * 1024 * 1024;
 const queues = new Map<string, Promise<unknown>>();
@@ -46,8 +46,24 @@ export class Workspace {
     if (await total(this.root) + extra > MAX_TOTAL) throw new Error('Workspace storage limit reached (256 MiB).');
   }
   output(value: unknown): unknown {
-    if (typeof value === 'string') return value.startsWith(this.root)
-      ? '/workspace'+value.slice(this.root.length).replaceAll('\\','/') : value.split(this.root).join('/workspace');
+    if (typeof value === 'string') {
+      if (isAbsolute(value)) {
+        const rel = relative(resolve(this.root), resolve(value));
+        if (rel === '') return '/workspace';
+        if (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) return `/workspace/${rel.split(sep).join('/')}`;
+      }
+      // Paths can also appear inside structured error text. Match separators
+      // and casing as Windows may canonicalize the filesystem path differently.
+      const root = this.root.split(/[\\/]/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\\\/]');
+      if (!root) return value;
+      const pattern = new RegExp(root, process.platform === 'win32' ? 'gi' : 'g');
+      return value.replace(pattern, (match, offset) => {
+        const next = value[offset + match.length], after = value[offset + match.length + 1];
+        const closing = ['"', "'", '`', ')', ']', '}'];
+        const terminalPunctuation = '.,;:!?'.includes(next || '') && (!after || /\s/.test(after) || closing.includes(after));
+        return next === undefined || next === '/' || next === '\\' || /\s/.test(next) || closing.includes(next) || terminalPunctuation ? '/workspace' : match;
+      });
+    }
     if (Array.isArray(value)) return value.map(v => this.output(v));
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v]) => [k,this.output(v)]));
     return value;

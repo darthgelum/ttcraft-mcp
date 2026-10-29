@@ -109,6 +109,43 @@ function onSize(player, n) panel:setValue("size", n) end
 
 `anchor` is `top` / `bottom` / `left` / `right` / `center`, or `free` with `x` / `y` screen pixels. The handle has `:setValue(id, v)`, `:setTitle(t)`, `:close()`; the non-handle forms are `tw.setPanelValue(panelId, id, v)` and `tw.closePanel(panelId)`.
 
+Every panel has a draggable title bar, minimize/restore and a close button.
+The **Script windows** list reopens locally closed windows. These presentation
+choices belong to each client, including for a shared panel. Calling
+`createPanel` again opens it again; `setValue`/`setTitle` update it without
+undoing the player's decision to minimize or hide it. `panel:close()` is the
+script removing the descriptor, so it disappears from that list too.
+
+Panels support two audiences in the API:
+
+```lua
+-- Shared by everyone (the default): one descriptor and shared live values.
+score = tw.createPanel({ id='score', scope='shared', title='Score', elements={...} })
+
+-- Private to the player who clicked. The same id may exist for other players.
+local unitWindows = {}
+function onClick(player)
+  unitWindows[player] = tw.createPanel({ id='unit', scope='player', player=player,
+    title=self:getName(), elements={...} })
+  unitWindows[player]:setValue('hp', self:getVar('hp')) -- only this player
+end
+```
+
+The server filters private descriptors on broadcast and initial connection;
+other players do not receive them. The `player` argument must be a connected
+positive player id. `scope='shared'` is the default without `player`;
+`scope='player'` is inferred when `player` is supplied. Explicitly selecting
+`scope='player'` without a valid player is an error, so an absent click target
+cannot accidentally turn a private window into a shared one. Handles remember their audience;
+the functional forms also accept it: `tw.setPanelValue(id, element, value, player)`
+and `tw.closePanel(id, player)`. Without that argument those functions address
+the shared panel. Private descriptors are discarded on player disconnect.
+
+Control callbacks execute in server Lua and receive the actual player who
+pressed the control, for both audiences. Game data remains authoritative and
+may be shared even when its controls are private. A private panel controls
+visibility, not permission to change a game object through other public actions.
+
 ## Context menus
 
 Right-click entries — on an object (`obj:addContextMenuItem`) or on the empty table (`tw.addContextMenuItem`). Either `(label, fnName)` or a table:

@@ -72,6 +72,14 @@ try {
   const example = JSON.parse(await readFile('examples/four-player-table.json', 'utf8'));
   await call('blueprint_apply', { blueprint: example, dry_run: false });
   const withExample = await call('objects_list'); assert.equal(withExample.total, twice.total + 3);
+  const spawnedToken=await call('objects_spawn',{spec:{kind:'token',label:'Flat token',token:{front:asset.path,back_mode:'copy',shape:'circle',width_mm:32,height_mm:32,thickness_mm:2}},position:[-.3,.04,0]});
+  const tokenObject=spawnedToken.observed_new_objects.find(o=>o.kind==='prop');assert.ok(tokenObject);
+  const tokenEdit=await call('table_command',{command:'tokenset',arguments:{id:tokenObject.id,token:{back_mode:'mirror',thickness_mm:3}}});
+  assert.equal(tokenEdit.status,'server_response');assert.equal(tokenEdit.response.type,'tokenresult');assert.equal(tokenEdit.response.ok,true);
+  const spawnedDeck=await call('objects_spawn',{spec:{kind:'deck',label:'Format probe'},position:[-.4,.04,0]});
+  const deckObject=spawnedDeck.observed_new_objects.find(o=>o.kind==='deck');assert.ok(deckObject);
+  const formatEdit=await call('table_command',{command:'cardformat',arguments:{id:deckObject.id,format:'tarot',landscape:true}});
+  assert.equal(formatEdit.status,'server_response');assert.equal(formatEdit.response.type,'cardformatresult');assert.equal(formatEdit.response.ok,true);
   await call('archives_export', { output_path: join(temp, 'native.zip') });
   await call('archives_import', { file_path: join(temp, 'native.zip') });
   const imported = await call('objects_list'); assert.ok(imported.objects.some(o => o.guid === obj.guid));

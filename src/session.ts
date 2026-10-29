@@ -14,6 +14,7 @@ const directReplies: Record<string, string[]> = {
   tableplan: ['tableplanresult'], zoneadd: ['zoneresult'], snapadd: ['snapresult'], drawadd: ['drawresult'], decaladd: ['decalresult'],
   getprops: ['props'], menu: ['menu'], groupmenu: ['menu'], containerlist: ['contlist'],
   clippaste: ['pasted'], savetable: ['tablesaved'], tmstats: ['tmstats'], editlock: ['editlock'],
+  tokenset: ['tokenresult'], cardformat: ['cardformatresult'],
 };
 
 export class TableSession {

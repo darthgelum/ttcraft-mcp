@@ -49,16 +49,16 @@ function onUpdate(dt) end            -- the global-function style
 self:on("update", function(dt) end)  -- explicit registration
 ```
 
-Both work for every event in the [events reference](/docs/scripting-events). An unknown event name in `self:on` is silently ignored — check spelling against the reference.
+Use named functions in the Global script, where `self` is unavailable. In an object script, explicit registration for an event takes precedence over its named function. An unknown event name in `self:on` is ignored. See the [events reference](/docs/scripting-events) for where each event is delivered.
 
 ## The Global script
 
-Besides per-object scripts there is **one table-level script** with no `self`. Open it from the ribbon (**Table → Script**). It receives table-wide events — player connect/disconnect, turn changes, the `trySpawn` and `onPlayerAction` vetoes — and is the natural home for game rules, table UI and zone logic. It persists in the table's database and survives restarts.
+Besides per-object scripts there is **one table-level script** with no `self`. Open it from **Tools → Table script** in the **Table setup** group. It receives table-wide events such as player joins, turn changes, and the `trySpawn` and `onPlayerAction` vetoes. Use it for game rules, table UI and zone logic. It persists in the table's database and survives restarts.
 
 ```lua
 function onPlayerConnect(player)
   local p = tw.getPlayer(player)
-  tw.broadcastToAll((p and p:getName() or "Someone") .. " joined")
+  if p then tw.broadcastToAll(p:getDisplayName() .. " joined") end
 end
 ```
 
@@ -66,11 +66,11 @@ A game can also ship a Global script (`"globalScript"` in `game.json`); a user's
 
 ## Persisting state
 
-Three tiers, all of which survive snapshots, saves and Time Machine rollback:
+Choose a store based on how the state should be restored:
 
-1. **`self:setVar(key, primitive)`** — per-object primitives (number/string/boolean).
-2. **`self:setTable(key, tbl)` / `tw.setTable(key, tbl)`** — whole tables, per-object or table-wide, stored by value.
-3. **`tw.store(key, value)`** — table-wide key/value in the database (tables round-trip through JSON).
+1. **`self:setVar(key, primitive)`** stores per-object numbers, strings or booleans in snapshots.
+2. **`self:setTable(key, tbl)` / `tw.setTable(key, tbl)`** store per-object or table-wide tables by value in snapshots. Time Machine restores these stores and object vars.
+3. **`tw.store(key, value)`** writes to the table database and is included in exported archives. Time Machine leaves this store at its current value.
 
 A bare Lua global (`count = 5`) or a closure upvalue does **not** round-trip: a live VM can't be frozen, so on restore the source is re-run to rebuild handlers and the saved vars are re-injected.
 
@@ -90,11 +90,11 @@ end
 Defining `onSave` opts the script into this model: its `onLoad(saved)` then runs on every restore. A script *without* `onSave` keeps the simpler behaviour — vars are re-injected and `onLoad` does **not** re-run on a restore, so one-shot setup isn't repeated. Two things to know:
 
 - `onSave` fires on every automatic snapshot — continuously during play, not only on explicit saves. Keep it fast and side-effect free.
-- Ephemeral contributions — zones, snap points, UI, hotkeys, menu items, timers — are **not** part of the data snapshot. Declare them in `onLoad` so they come back after a reload or restore.
+- Recreate ephemeral contributions such as scripting zones, UI, hotkeys and timers in `onLoad`. An object script that needs this setup after snapshot restoration can define `onSave` returning an empty string. Keep the setup safe to repeat. Per-object snap points are saved with the object.
 
 ## Errors and hot reload
 
-Saving a script compiles it in a fresh state; on a compile error the old version keeps running and the error appears in the editor. At runtime, any uncaught error (including out-of-memory and the time budget) prints to the browser console and **disables the script** until you save it again. A veto hook that errors *allows* the action — a broken script can never lock the table up.
+Saving a script compiles it in a fresh state. On a compile error the old version keeps running and the error appears in the editor. An uncaught runtime error, including a memory or time limit, appears in the browser console and disables the script. Saving it again recompiles it. The server's `resumescript` command can also re-enable an existing instance. A veto hook that errors allows the action.
 
 On reload, the script's previous contributions are cleared: zones, ribbon items, panels, menus, hotkeys, hidden-UI entries and pending timers/dialog callbacks all die with the old instance.
 
@@ -104,7 +104,7 @@ On reload, the script's previous contributions are cleared: zones, ribbon items,
 - **Memory:** 2 MB per script state; exceeding it is an error (script disabled).
 - **CPU:** each handler call has a 50 ms wall-clock budget; an infinite loop is aborted, the server never freezes. Script-to-script `call` chains share the outer deadline and may nest 64 deep.
 - **Log flood:** ~40 log lines per handler call; beyond that output is suppressed for the rest of the call.
-- **Contribution caps** (per script): 512 vars and 512 tables per object, 256 hotkeys, 256 menu items, 256 panels, 64 ribbon tabs with 256 items, 1024 zones table-wide. Over-cap writes are dropped silently.
+- **Contribution caps:** 512 vars, 512 tables and 256 tags per object. Each script can add up to 64 ribbon tabs and 256 standalone ribbon items. The limits for hotkeys and context-menu items are 256 per owner or menu. Floating panels and scripting zones are capped table-wide at 256 and 1024 respectively.
 
 ## Not available (yet)
 

@@ -6,9 +6,9 @@ section: Table scripting
 toc: true
 ---
 
-Handlers are registered by defining a global function with the event's `on`-name, or with `self:on("event", fn)` — see [registering handlers](/docs/scripting#registering-handlers). In every table below, `player` is a numeric player id, and `0` means the server itself triggered the action.
+Register handlers by defining a global function with the event's `on`-name. Object scripts can also use `self:on("event", fn)`. In every section below, `player` is a numeric player id and `0` means the server itself triggered the action. See [registering handlers](/docs/scripting#registering-handlers).
 
-Events are **observational**: they fire *after* the action happened. [Veto hooks](#veto-hooks) (`try*`) run *before* it and can cancel it.
+Most events observe an action after it happens. `onDestroy` and `onPlayerDisconnect` run during teardown, while the object or player is still available. [Veto hooks](#veto-hooks) run before the action and can cancel it.
 
 ## Object events
 
@@ -24,14 +24,14 @@ Events are **observational**: they fire *after* the action happened. [Veto hooks
 | `onFlip(player)` | the object is flipped over |
 | `onRotate(player)` | rotated or aligned (align / rotate left / right / 180°) |
 | `onSetpose(player)` | position/rotation/scale set via the gizmo |
-| `onFlick(player)` | the object is flicked / thrown by a player |
-| `onHover(player)` | a player's cursor comes to rest over the object (enter only) |
-| `onPeek(player)` | a player peeks at the object (Alt-hover a card) |
-| `onNumberTyped(player, number, alt)` | a player types a number while hovering the object |
+| `onFlick(player)` (alias `onObjectFlick`) | the object is flicked or thrown with the throw command |
+| `onHover(player)` (alias `onObjectHover`) | a player's cursor comes to rest over the object (enter only) |
+| `onPeek(player)` (alias `onObjectPeek`) | a player peeks at the object (Alt-hover a card) |
+| `onNumberTyped(player, number, alt)` (alias `onObjectNumberTyped`) | a player types a number while hovering the object |
 | `onCollisionEnter(other)` | another object starts overlapping (axis-aligned bounding boxes, tested per frame only for objects with a collision handler) |
 | `onCollisionStay(other)` | keeps overlapping, each frame |
 | `onCollisionExit(other)` | stops overlapping |
-| `onSpawn(player)` | this object was spawned by a player (spawn command / library template), after its script is live. Not fired for paste, container takes, or script spawns |
+| `onSpawn(player)` | the spawn command or a library template created the object and its script is live. This also covers Lua `tw.spawnTemplate`, with player id `0` |
 | `onDestroy(player)` | the object is deleted by a player (delete command / cut). **Not** fired by script `destroy()`, container puts, or Time Machine rollback |
 | `onLock(player)` / `onUnlock(player)` | the object is locked / unlocked |
 | `onGroup(player)` / `onUngroup(player)` | the object is welded into / released from a rigid group (fires on every member) |
@@ -45,16 +45,18 @@ Events are **observational**: they fire *after* the action happened. [Veto hooks
 | Handler | Fires on | When |
 | --- | --- | --- |
 | `onShuffle(player)` | the deck / container | it is shuffled (including zone-randomize) |
-| `onDraw(card, player)` | the deck | a card is drawn or revealed from it (`card` = the new card). A physical *pull* from the bottom fires only `tryDraw`, not `onDraw` |
+| `onDraw(card, player)` | the deck | a card is taken, revealed, pulled or dealt. The source deck must still exist after the take. |
 | `onMerge(player)` | the **surviving** stack | another stack was merged onto it |
-| `onEnterHand(player)` | the card | it enters a player's hand; `player` is the hand's **owner** — a GM can fill someone else's hand |
-| `onLeaveHand(player)` | the card | it is played out of the hand with the un-hand action. Simply grabbing your own hand card out does not fire it |
+| `onGather(deck, player)` | each consumed stack | Gather created the resulting `deck`. Use the argument to refer to the new object. |
+| `onSpread(player)` | the consumed deck | its cards were queued for the fan. They arrive on the table over the next few seconds. |
+| `onEnterHand(owner)` | the object | it joins a hand from the table, a deal, or Lua. The argument is the hand owner. |
+| `onLeaveHand(owner)` | the object | it is picked up, played out, or released when its owner disconnects. The argument is the former owner. |
 | `onObjectEnterContainer(obj, player)` | the container / deck | `obj` was put or merged into it |
 | `onObjectLeaveContainer(obj, player)` | the container / deck | `obj` was taken, drawn or tipped out of it |
 
 ### Zone events
 
-Zone events fire on the script that **created** the zone (object script or Global):
+Zone events fire on the script that created a Lua zone. For zones from the editor or a table plan, the Global script receives them. Movement is observed in the simulation, so the same hooks see physical motion and scripted placement.
 
 | Handler | Fires |
 | --- | --- |
@@ -83,10 +85,10 @@ Per-object hooks:
 | `tryStateChange(player)` | a player switching the multistate |
 
 ```lua
--- only the owner may pick this up, and never while it's locked
+-- allow pickup only for a player with Play capability while it is unlocked
 function tryGrab(player)
-  if self:isLocked() then return false end
-  return tw.getPlayer(player):can("play")
+  local p = tw.getPlayer(player)
+  return p ~= nil and p:can("play") and not self:isLocked()
 end
 ```
 
@@ -103,25 +105,30 @@ The [Global script](/docs/scripting#the-global-script) has no `self`; it receive
 | `onPlayerChangeColor(player)` | a player's seat color changed |
 | `onPlayerChangeCaps(player)` | a player's capabilities changed |
 | `onPlayerTurn(current, previous)` | the turn moved (`previous` is 0 for the first turn) — see [Turns](/docs/scripting-players#turns) |
+| `onObjectEnterHand(object, owner)` | an object joined a hand, including cards without a script |
+| `onObjectLeaveHand(object, owner)` | an object left a hand during play or player disconnect |
 
-Plus zone events for zones it owns, and its UI/hotkey/menu/dialog callbacks.
+Archive and Time Machine restores reconstruct hands without replaying gameplay events. Deck operations started by Lua or a signed authoring tool report actor `0` in the deck hooks. Hand hooks always report the owner.
 
 ### Global veto hooks
 
 | Hook | Cancels |
 | --- | --- |
 | `trySpawn(params, player)` | a player spawning objects. `params` = `{kind, dieType, template, x, y, z}`; one spawned *set* is vetoed as one action |
-| `onPlayerAction(player, action, target)` | **any** capability-gated player action. `action` is the command name; `target` is the object handle, or nil |
+| `onPlayerAction(player, action, target)` | a capability-gated command that participates in the veto system. `action` is the command name and `target` is the object handle or nil |
 
 ```lua
 -- table rules: at most 6 dice, and nobody acts out of turn
 function trySpawn(params, player)
-  if params.kind == "die" and #tw.getObjectsWithTag("die") >= 6 then
-    tw.getPlayer(player):print("Too many dice already.")
-    return false
+  if params.kind ~= "die" then return end
+  local count = 0
+  for _, object in ipairs(tw.getObjects()) do
+    if object:kind() == "die" then count = count + 1 end
   end
+  if count >= 6 then return false end
 end
 function onPlayerAction(player, action, target)
+  if player == 0 then return end -- table automation
   if Turns.isEnabled() and player ~= Turns.current() then return false end
 end
 ```

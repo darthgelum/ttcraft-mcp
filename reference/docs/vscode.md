@@ -18,9 +18,9 @@ At a glance, it gives you:
 
 - **Your tables in the sidebar** — every table you manage, with its Global script, objects and library templates, updating live as things spawn and despawn.
 - **Scripts as real files** — one folder on disk mirrors the table, so search, git and every editor tool work on the scripts.
-- **Save is deploy** — `Ctrl+S` sends a script to the running table and it takes effect for every player at once; a compile error is shown on the offending line and the previous version keeps running.
+- **Save to the live table** — saving Global or an object script compiles it on the server. VS Code shows compile errors while the previous version keeps running.
 - **The console in the editor** — everything scripts print and every error, in an output channel and in a file.
-- **Autocomplete for the whole API** — `tw`, `self`, players, `JSON`, `Vector`, `Color` and every event, through the Lua language server.
+- **Lua autocomplete** — bundled definitions for `tw`, `self`, players, `JSON`, `Vector`, `Color` and events, through the Lua language server.
 - **Made for AI agents** — the folder explains itself to Copilot, Claude Code, Codex and friends, so an agent can write and debug table scripts on its own.
 
 The rest of this page walks through each of those.
@@ -63,21 +63,21 @@ Opening a script mirrors the table into **one folder** — the *table folder* �
 
 Only objects and templates that already carry a script get a file. Names are the same the table shows in the browser, so built-in templates read as *Playing cards*, not as i18n keys.
 
-**One folder holds one table.** Opening a script on a different table switches the folder: editors on the old table's files are closed, its files are removed, and the new table's scripts are written in their place. Nothing is lost by this — the table is the source of truth and every save has already reached it — and whoever works in the folder, you or an agent, never sees two tables mixed together. The status bar shows which table is in the folder.
+**One folder holds one table.** Opening a script on a different table closes the old table's editors and rebuilds the folder from the new table. **Refresh** rebuilds from the current table. Copy any edits that failed to reach the server to a file outside the table folder before rebuilding it, switching tables or signing out. The status bar shows which table the folder currently mirrors.
 
 Do not rename, move or create script files by hand: the `__<id>` suffix is how a file maps back to its entity. Deleting a file deletes nothing on the table.
 
 ## Saving
 
-`Ctrl+S` pushes the file to the table at once, exactly like the **Save** button in the browser's script editor: the script is compiled in a fresh state and, if it compiles, replaces the running one for every player. If it does not compile, the previous version keeps running, the error is shown as a diagnostic on the offending line, and a line is appended to `.ttcraft/console.log`.
+`Ctrl+S` sends the file to the table. For a Global or live object script, the server compiles it in a fresh state before replacing the running version. If compilation fails, the previous version keeps running and VS Code shows the diagnostic and logs the failure. A library template save updates the definition used by future spawns. To check that template's Lua runs, spawn a test instance and read the console.
 
-Everything the table's scripts print — `print()`, `log()`, runtime errors — arrives in the **TTCraft Table** output channel (*TTCraft: Show table console*) and in `.ttcraft/console.log`, prefixed by the table. A runtime error disables that script until its next save, as in the browser.
+Script output and runtime errors appear in the **TTCraft Table** output channel (*TTCraft: Show table console*) and in `.ttcraft/console.log`. If a runtime error disables a script, save the corrected source to run it again.
 
 Live changes on the table reach the folder as they happen: a despawned object's file goes away, a template edited in the browser is rewritten. An *object's* script edited in the browser is not broadcast, so after editing the same script in both places press **Refresh** in the view's toolbar — it reconnects and re-pulls every script.
 
 ## Autocomplete and checking
 
-The extension ships EmmyLua definitions of the whole API — `tw`, the object and player handles, `JSON`, `Vector`, `Color`, and every event callback — and points the Lua language server at them through the folder's `.luarc.json`. With the Lua extension installed you get completion, signatures and undefined-global checks for `self`, `tw` and friends. The definitions file (`resources/library/ttcraft.lua` inside the extension) is also the most exact description of the API there is, and `AGENTS.md` names its absolute path for agents.
+The extension ships EmmyLua definitions and points the Lua language server at them through the folder's `.luarc.json`. With the Lua extension installed you get completion, signatures and undefined-global checks for `self`, `tw` and other table globals. `AGENTS.md` names the definitions file (`resources/library/ttcraft.lua` inside the extension). The definitions ship with the extension, so consult the [scripting reference](/docs/scripting) for APIs added in later table releases.
 
 ## Working with an AI agent
 
@@ -123,7 +123,7 @@ For anyone building their own tooling — the extension is a thin client over tw
 
 - `GET /api/dev/me` → `{"user": {"id", "username", "name"}}`.
 - `GET /api/dev/tables` → `{"tables": [{"id", "channel": {"id", "name", "slug"}, "room": {"name", "slug"}, "status", "running", "last_activity_at"}]}` — the tables whose room grants you *Manage table*.
-- `GET /api/dev/tables/{id}/connect` → `{"table_id", "token", "caps", "ws_url", "http_url", "expires_in"}` — a two-minute WebSocket token for one running table, with the same capabilities you would get in the browser. A stopped table answers `409 {"error": "table_not_open"}`.
+- `GET /api/dev/tables/{id}/connect` → `{"table_id", "token", "caps", "connection_kind", "ws_url", "http_url", "expires_in"}`. On current TTCraft installations, `connection_kind` is `"tool"` and the token normally lasts two minutes. The tool connection uses your table permissions and can run alongside your browser. A stopped table answers `409 {"error": "table_not_open"}`.
 
 **The table itself** speaks JSON over `ws_url?token=…`. After `{"type": "identify", "clientId", "tabId"}` the server sends `hello` (object names) and `props` (objects with their `guid`), then keeps both up to date. The scripting messages:
 
@@ -134,7 +134,7 @@ For anyone building their own tooling — the extension is a thin client over tw
 | `{"type": "getscript", "id": <runtime id>}` | `{"type": "script", "id", "code"}` |
 | `{"type": "setscript", "id", "code"}` | `{"type": "scriptresult", "id", "ok", "error"}` |
 | `{"type": "liblist"}` | `{"type": "library", "items": [{"id", "name", "category", "kind", "script", …}]}` — also pushed on every library change |
-| `{"type": "libsave", …whole item…, "script": "…"}` | `{"type": "libresult", "id", "ok", "error"}` — a whole-item replace: resend name and category |
+| `{"type": "libsave", "id": "…", "name": "…", "category": "…", "script": "…"}` | `{"type": "libresult", "id", "ok", "error"}`. Resend name and category because both have defaults. |
 | — | `{"type": "log", "id", "level", "msg"}` for every console line |
 
-Object *runtime ids* change across reconnects; scripts persist by **guid**, which is why the extension names files after it. `setscript` needs the *Edit* capability, which *Manage table* grants.
+Object runtime IDs refer to the current live world and can change after a restore or restart. Scripts persist by **GUID**, which is why the extension puts the GUID in the filename. Resolve it to the current runtime ID before calling `setscript`, which requires the **Edit** table capability.

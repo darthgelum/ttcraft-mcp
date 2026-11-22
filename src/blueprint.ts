@@ -19,6 +19,7 @@ export const blueprintSchema = z.object({
     spec: data.default({}), name: z.string().max(100).optional(),
     position: vec3, rotation: quat.optional(), scale: vec3.optional(),
     properties: data.optional(), locked: z.boolean().optional(), script: z.string().max(1000000).optional(),
+    allow_weightless: z.boolean().default(false).describe('Set true only when the user requested a weightless object.'),
   })).max(500).default([]),
   global_script: z.string().max(1000000).optional(),
 }).strict();
@@ -56,7 +57,17 @@ export async function applyBlueprint(session: TableSession, config: Config, bp: 
   };
   const library = () => (session.state.messages.get('library')?.items || []) as Json[];
   // Reject missing references before changing any part of the live table.
-  for (const obj of bp.objects) if (obj.template && !obj.template.startsWith('$') && !library().some(t => t.id === obj.template)) throw new Error(`Template ${obj.template} is absent.`);
+  for (const obj of bp.objects) {
+    if (obj.template && !obj.template.startsWith('$') && !library().some(t => t.id === obj.template))
+      throw new Error(`Template ${obj.template} is absent.`);
+    session.checkGravity({ ...obj.properties, type: 'setprops' }, obj.allow_weightless);
+    const saved = index.objects[obj.key];
+    if (saved && [...session.state.objects.values()].some(o => o.guid === saved)) continue;
+    const local = obj.template?.startsWith('$') ? bp.templates.find(t => '$' + t.key === obj.template) : undefined;
+    const templateId = local ? index.templates[local.key] : obj.template;
+    const template = templateId ? library().find(t => t.id === templateId) : undefined;
+    session.checkGravity({ ...template, ...local?.spec, ...obj.spec, type: 'spawn' }, obj.allow_weightless);
+  }
   const summary = { id: bp.id, table_id: session.tableId, plan: !!bp.plan, templates: bp.templates.map(t => ({ key: t.key, existing_id: index.templates[t.key] })),
     objects: bp.objects.map(o => ({ key: o.key, existing_guid: index.objects[o.key], position: o.position })), global_script: bp.global_script !== undefined,
     pending: index.pending, note: 'Updates objects by persisted guid. Does not remove omitted objects. This is a sequential workflow, not a server transaction. Global script runs last.' };
@@ -110,12 +121,13 @@ export async function applyBlueprint(session: TableSession, config: Config, bp: 
           const templateId = spec.template?.startsWith('$') ? index.templates[spec.template.slice(1)] : spec.template;
           const template = templateId ? library().find(t => t.id === templateId) : undefined;
           if (template && Array.isArray(template.set) && template.set.length) throw new Error('Blueprint objects must spawn a single object; use table_command for set templates.');
-          index.pending = { kind: 'object', key: spec.key, marker }; await persist();
           // Inline the template to give this spawn a unique recovery marker.
           // This snapshot does not establish live template linkage.
           const source: Json = { ...template, ...spec.spec, type: 'spawn', label: marker, p: spec.position };
           delete source.id; delete source.requestId;
-          await session.execute(source);
+          session.checkGravity(source, spec.allow_weightless);
+          index.pending = { kind: 'object', key: spec.key, marker }; await persist();
+          await session.execute({ ...source, allow_weightless: spec.allow_weightless });
           await session.until(() => [...session.state.objects.values()].some(o => o.props?.label === marker && o.guid && o.position), 12000);
           obj = [...session.state.objects.values()].find(o => o.props?.label === marker)!;
           index.objects[spec.key] = obj.guid!;
@@ -128,7 +140,8 @@ export async function applyBlueprint(session: TableSession, config: Config, bp: 
         }
         const pos = await session.execute({ type: 'setpose', id: obj.id, pos: spec.position,
           ...(spec.rotation ? { rot: spec.rotation } : {}), ...(spec.scale ? { scale: spec.scale } : {}) });
-        await session.execute({ ...spec.properties, type: 'setprops', id: obj.id, label: spec.name || spec.key });
+        await session.execute({ ...spec.properties, type: 'setprops', id: obj.id, label: spec.name || spec.key,
+          allow_weightless: spec.allow_weightless });
         if (spec.script !== undefined) await session.execute({ type: 'setscript', id: obj.id, code: spec.script });
         if (spec.locked ?? wasLocked) {
           await session.execute({ type: 'lock', id: obj.id, on: true });

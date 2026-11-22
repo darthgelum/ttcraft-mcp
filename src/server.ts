@@ -14,6 +14,7 @@ import type { Config } from './config.js';
 const tableId = z.number().int().positive().optional().describe('Omit to use the active connected table.');
 const ref = z.union([z.string().min(1), z.number().int().positive()]).describe('Stable object GUID (preferred), or current runtime id.');
 const data = z.record(z.string(), z.unknown());
+const allowWeightless = z.boolean().default(false).describe('Set true only when the user requested disabling gravity. Normal placement, locking and resizing do not need this.');
 const hash = (code: string) => createHash('sha256').update(code).digest('hex');
 const pagination = { offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(500).default(100) };
 function page(value: unknown, offset = 0, max = 16000): Json {
@@ -42,7 +43,7 @@ export function createServer(config: Config, options: ServerOptions = {}): { ser
   const remoteInstructions = instructions.replace(/Start with auth_status;.*?Never request a password\/token\./,
     'OAuth is handled by the MCP client. Use auth_status to see the connected account. Never request passwords or tokens.') +
     ' Remote mode: files live in your isolated /workspace, not on your computer. Use files_write/files_read for bounded base64 transfers. File paths must start /workspace/. No server filesystem access outside your workspace is available.';
-  const server = new McpServer({ name: 'ttcraft-mcp', version: '0.1.2' }, { instructions: config.remote ? remoteInstructions : instructions });
+  const server = new McpServer({ name: 'ttcraft-mcp', version: '0.1.3' }, { instructions: config.remote ? remoteInstructions : instructions });
   // Zod raw shapes keep tool schemas compatible with MCP clients that reject
   // root-level oneOf/anyOf. Tool failures are MCP isError results.
   function tool(name: string, description: string, shape: z.ZodRawShape, readOnly: boolean, run: (args: any) => Promise<unknown>, destructive = !readOnly): void {
@@ -91,8 +92,8 @@ export function createServer(config: Config, options: ServerOptions = {}): { ser
     if (a.refresh) await s.command({ type: 'getprops', id: obj.id });
     return { guid: obj.guid, id: obj.id, ...page(s.state.resolve(a.object), a.offset, a.max_characters) };
   });
-  tool('objects_spawn', 'Spawn an object or a native linked library template. For a template, spawn fields come from the template; use objects_patch afterwards. Returns observed new objects, which can also include concurrent spawns by others. Use blueprint_apply for reliably tracked repeated builds.', {
-    table_id: tableId, template: z.string().optional(), spec: data.default({}), position: vec3,
+  tool('objects_spawn', 'Spawn an object or a native linked library template. For tablets, use spec.tablet.page {w,h} in pixels and match the source image aspect ratio. The server fits the slab unless spec.props.scale is supplied. For a linked template, fields come from the template. Returns observed new objects, which can include concurrent spawns.', {
+    table_id: tableId, template: z.string().optional(), spec: data.default({}), position: vec3, allow_weightless: allowWeightless,
   }, false, async a => {
     const s = get(a);
     for (const k of ['type', 'id', 'requestId', 'template', 'p']) if (k in a.spec) throw new Error(`spec.${k} is reserved.`);
@@ -100,17 +101,22 @@ export function createServer(config: Config, options: ServerOptions = {}): { ser
     if (a.template && !(s.state.messages.get('library')?.items || []).some((t: Json) => t.id === a.template)) throw new Error('Unknown template; use library_list.');
     return s.exclusive(async () => {
       const before = new Set(s.state.objects.keys());
-      const reply = await s.execute({ ...a.spec, type: 'spawn', ...(a.template ? { template: a.template } : {}), p: a.position });
-      const changed = () => [...s.state.objects.keys()].some(id => !before.has(id));
+      const reply = await s.execute({ ...a.spec, type: 'spawn', ...(a.template ? { template: a.template } : {}),
+        p: a.position, allow_weightless: a.allow_weightless });
+      // Props can arrive before the first world frame. Wait for a pose so an
+      // immediate follow-up (e.g. Spread) can also observe the source removal.
+      const newObjects = () => [...s.state.objects.values()].filter(o => !before.has(o.id) && o.position);
+      const changed = () => newObjects().length > 0;
       try { await s.until(changed, 3000); } catch { /* no spawn ack; retain honest stream result */ }
-      return { ...reply, observed_new_objects: [...s.state.objects.values()].filter(o => !before.has(o.id)), attribution: 'Observed since this request; concurrent user spawns may be included.' };
+      return { ...reply, observed_new_objects: newObjects(), attribution: 'Observed since this request; concurrent user spawns may be included.' };
     });
   });
   tool('objects_patch', 'Patch appearance/physics/name properties on one or more objects. Properties follow setprops; use command_describe for exact fields. label is the display name.', {
-    table_id: tableId, objects: z.array(ref).min(1).max(500), properties: data,
+    table_id: tableId, objects: z.array(ref).min(1).max(500), properties: data, allow_weightless: allowWeightless,
   }, false, async a => {
     for (const k of ['type', 'id', 'ids', 'requestId']) if (k in a.properties) throw new Error(`properties.${k} is reserved.`);
-    const s = get(a); return s.command({ ...a.properties, type: 'setprops', ids: a.objects.map((o: string | number) => s.state.resolve(o).id) });
+    const s = get(a); return s.command({ ...a.properties, type: 'setprops',
+      ids: a.objects.map((o: string | number) => s.state.resolve(o).id), allow_weightless: a.allow_weightless });
   });
   tool('objects_move', 'Place an object in metres with optional quaternion rotation [x,y,z,w] and scale [x,y,z]. Locked objects must be explicitly unlocked with objects_lock first. Inspect state afterwards to verify clamping/physics.', {
     table_id: tableId, object: ref, position: vec3.optional(), rotation: quat.optional(), scale: vec3.optional(),
@@ -172,7 +178,7 @@ export function createServer(config: Config, options: ServerOptions = {}): { ser
     }
     return { target: a.target, sha256: hash(code), ...(a.output_path ? { output_path: a.output_path } : page(code, a.offset, a.max_characters)) };
   }, false);
-  tool('script_write', 'Compile and install Lua source on the live table. Supply exactly one of code/file_path. expected_sha256 checks the current source before writing. A compile failure returns isError and the previous script stays active. Read console afterwards.', {
+  tool('script_write', 'Compile and install Lua source on the live table. Supply exactly one of code/file_path. expected_sha256 checks the current source before writing. Keep gravity enabled in Lua unless the user asks for weightlessness. A compile failure returns isError and the previous script stays active. Read console afterwards.', {
     ...scriptTarget, code: z.string().max(1000000).optional(), file_path: z.string().optional(), expected_sha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
   }, false, async a => {
     if ((a.code === undefined) === (a.file_path === undefined)) throw new Error('Supply exactly one of code or file_path.');
@@ -208,14 +214,16 @@ export function createServer(config: Config, options: ServerOptions = {}): { ser
     const { implementation, ...metadata } = cmd;
     return { ...metadata, reference: page(implementation, a.offset, a.max_characters) };
   });
-  tool('table_command', 'Run a native TTCraft command from the catalog. Read command_describe first. Supply protocol fields in arguments; object id must be a current runtime id. Server enforces all permissions and script vetoes. processed_unverified is not a success acknowledgement.', {
+  tool('table_command', 'Run an authoring command from the TTCraft catalog. Read command_describe first. Use current runtime object IDs. A test deal requires explicit seated recipients in arguments.players. The connection has no player seat or hand. Server permissions and script vetoes apply. Verify processed_unverified in the resulting state.', {
     table_id: tableId, command: z.string(), arguments: data.default({}), response_type: z.string().optional(), timeout_ms: z.number().int().min(1000).max(30000).default(12000),
+    allow_weightless: allowWeightless,
   }, false, async a => {
     if ('type' in a.arguments || 'requestId' in a.arguments) throw new Error('type and requestId are reserved.');
-    return get(a).command({ ...a.arguments, type: a.command }, a.response_type, a.timeout_ms);
+    return get(a).command({ ...a.arguments, type: a.command, allow_weightless: a.allow_weightless }, a.response_type, a.timeout_ms);
   });
   tool('batch_execute', 'Run up to 100 native commands sequentially without interleaving other MCP commands. Prevalidates names. dry_run defaults true; set false to apply. Not atomic; returns completed steps on failure, with no automatic replay.', {
-    table_id: tableId, commands: z.array(z.object({ command: z.string(), arguments: data.default({}), response_type: z.string().optional() })).min(1).max(100),
+    table_id: tableId, commands: z.array(z.object({ command: z.string(), arguments: data.default({}),
+      response_type: z.string().optional(), allow_weightless: allowWeightless })).min(1).max(100),
     dry_run: z.boolean().default(true), stop_on_error: z.boolean().default(true),
   }, false, async a => {
     for (const cmd of a.commands) {
@@ -228,7 +236,8 @@ export function createServer(config: Config, options: ServerOptions = {}): { ser
       const results = [];
       let failed = false;
       for (const [index, cmd] of a.commands.entries()) {
-        try { results.push({ index, ...await s.execute({ ...cmd.arguments, type: cmd.command }, cmd.response_type) }); }
+        try { results.push({ index, ...await s.execute({ ...cmd.arguments, type: cmd.command,
+          allow_weightless: cmd.allow_weightless }, cmd.response_type) }); }
         catch (error) { failed = true; results.push({ index, error: (error as Error).message }); if (a.stop_on_error) break; }
       }
       return { isError: failed, results, completed: results.length, total: a.commands.length };

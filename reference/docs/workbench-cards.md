@@ -36,10 +36,12 @@ shows the current dimensions, recognizes a known preset or displays Custom, and
 can swap width and height. Applying a preset preserves thickness (Y scale),
 artwork and the rest of the object properties.
 
-Native/MCP command: `cardformat {id, format: 'poker', landscape: false}`. It
-returns `cardformatresult {id, ok}`; unknown names and non-card objects fail
-without changes. Lua: `self:setCardFormat('tarot', true)` returns a boolean.
-Library/archive records continue storing the resulting `props.scale`.
+For MCP, call `table_command` with `command: "cardformat"` and
+`arguments: {id, format: "poker", landscape: false}`. Use the current runtime
+object ID from `object_read`. The command requires Edit permission and an
+unlocked card or deck. Its reply is `cardformatresult {id, ok}`. From an object's
+Lua script, `self:setCardFormat("tarot", true)` returns a boolean. Library and
+archive records store the resulting `props.scale`.
 
 Merging and gathering compare actual X/Z dimensions, including free resizing,
 with only a tiny floating-point tolerance. Different dimensions cannot form a
@@ -48,9 +50,21 @@ a mixed-size group refuses the operation without consuming any cards. Matching
 cards retain their scale through dealing, cut/split, normalization, merge/gather,
 spread and container extraction. Hand/search previews follow the actual aspect.
 
-The Workbench's card/atlas editor changes artwork only. Its pixel crop sizes,
-quarter-turn source rotation and local grid corrections never write object scale.
-It supports one shared `back` or a `backs` array indexed like `faces`. Each card's
+## Artwork and corner rounding
+
+The Workbench's card editor accepts individual files or an atlas. Pixel crop
+sizes, quarter-turn source rotation and local grid corrections apply to the
+artwork. Set the physical dimensions in **Properties**.
+
+Use **Corner rounding** in the editor's **Preview** section to match the
+outline of your artwork. The control accepts 0–50% of the nominal card width.
+Choose 0% for square corners. The native and archive value is the fraction
+`cardRadius`, so 5% is `0.05`. This changes the rendered outline while keeping
+the preset dimensions.
+
+Use one shared `back` or a `backs` array indexed like `faces`. In the editor,
+choose the per-card back mode for a double-sided deck, then check the pairs
+before saving. Each card's
 face, back and name are remapped together when stacks with different art tables
 are combined, including operations invoked from Lua. A stack can contain up to
 255 distinct indexed variants; an overflowing combination is refused before

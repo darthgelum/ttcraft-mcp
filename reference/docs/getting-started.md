@@ -14,22 +14,22 @@ content published by other users — and **direct messages** for private convers
 
 ## Create an account
 
-TTCraft has no passwords. Signing up and signing in both work with a one-time code
-sent to your email:
+TTCraft uses one-time codes. To create an account by email:
 
-1. Open **Sign up** and enter your email address and a name.
-2. A short one-time code arrives at that address.
-3. Type the code in — the address is confirmed and you are in.
+1. Open **Sign up**. Choose a username, enter your email and birth date,
+   review and accept the terms, then click **Continue**. Display name is optional.
+2. Enter the six-digit code sent to your email and click **Confirm**.
 
-Signing in later is the same two steps: your email, then the code from the message.
-If the message does not arrive, check the spam folder and request a new code — each
-code works once and stays valid for only a few minutes.
+To sign in later, enter your email or username. If you connected an authenticator
+app under **Settings → Security**, enter its current code or use a saved recovery
+code. The sign-in screen also lets you request an email code. Email codes expire
+after 10 minutes. If a message does not arrive, check your spam folder and request
+a new code when the resend timer ends.
 
-If the login page also offers **Google** or **Discord**, that is the same account
-reached a shorter way, not a second one. The first time you use it, the address the
-provider confirms becomes your account's address; afterwards you can sign in either
-way. Link and unlink providers under **Settings → Security** — the email code keeps
-working whatever you link, so unlinking can never lock you out.
+If **Google** or **Discord** is available, you can use it to sign up or sign in.
+To connect a provider to an existing account, sign in first and link it in
+**Settings → Security**. You can also unlink it there and continue signing in
+by email.
 
 ## Rooms and channels
 
@@ -42,10 +42,10 @@ room is organised into **channels**, and a channel comes in one of two kinds:
 
 ### Game tables
 
-A **game table** opens inside a channel. The table is where the actual play
-happens: members of that channel sit down at it and play together without leaving
-TTCraft. When the session is over, the table can be closed and the channel goes
-back to being a regular conversation.
+A **game table** opens from a text channel. A member with **Manage table**
+can use **Open table** to start it. Other members with channel access can use
+**Join table** to play in their browser. The chat remains available in the channel
+while the table is open. A table manager can close it after the session.
 
 You do not need a group to try one: the [practice table](/table/tutorial) is
 yours alone, and it walks you through picking things up, rolling dice and dealing
@@ -75,6 +75,6 @@ conversations — write directly to anyone you play with.
 | --- | --- |
 | Room | A community space that holds channels, tables and members |
 | Channel | A text chat or a post feed inside a room |
-| Game table | A play space opened inside a channel |
+| Game table | A shared play space opened from a text channel |
 | Module | Game content published by a user |
 | Direct message | A private conversation between two users |

@@ -15,11 +15,19 @@ This page is the reference for that format. Read it if you want to keep a table 
 On the room page, the table's menu offers:
 
 - **Saves…** — named save slots kept on the site. A slot is an archive; loading one replaces what is on the table.
-- **Download table…** — the *full* archive: the table's state plus every file it uses, ready to load anywhere. On a big table this takes a while; the download starts when it is ready.
+- **Download table…** builds a portable archive with the table state and its referenced files. The download starts when the archive is ready. The same download is available for an individual save slot.
 - **Load from file…** — boots the table (or joins it, if it is running) and offers a file picker. The archive is verified on the table server and its objects **replace** whatever was on the table; the library, effects and gallery are merged in.
-- **Publish as a module** — from inside the table. A module's package is the same archive; other rooms add it to their tables as an *addition* (fresh object ids, the library merged, the Global script adopted only if the table has none).
+- **Publish** opens the module publishing flow from inside the table. When someone loads the package, its templates, effects and assets are added to their table's Workbench. The load dialog offers **Lay out its objects on the table** for modules with a layout. It can also take the table shape from one module. **Load module logic** can replace the table's existing Global script with the first available Global script from the selected modules.
+
+In the module load dialog, layout and logic are selected by default. If exactly
+one selected module specifies a table shape, the dialog preselects that shape.
+Choose **Keep the current table** to retain the current outline and seat ring.
 
 The table also autosaves continuously; a closed table reopens from its last state.
+
+An archive includes the full saved game state, including hidden objects, deck
+order, hand contents and scripts. Review that state before sharing an archive or
+publishing it as a module.
 
 ## The archive
 
@@ -32,16 +40,25 @@ A table archive is a zip with two required entries and two optional ones:
 | `blobs/<sha256>.<ext>` | no | The bytes of each file the manifest names. Present in a **Download table…** archive; absent from autosaves, slots and modules, which only *name* their files because the site already stores them. |
 | `thumbs/t<hex>.png` | no | Cached previews of library items. Derived data; safe to omit. |
 
-The smallest valid archive is therefore two files:
+The smallest valid archive has these two files.
+
+`game.json`
 
 ```json
-// game.json
 { "format": "tableweb", "objects": [] }
-// manifest.json
+```
+
+`manifest.json`
+
+```json
 { "format": "tableweb-manifest", "version": 1, "blobs": [] }
 ```
 
-Loading it gives an empty table of default size. Anything the archive does not mention keeps a default; anything malformed is reported with a reason (*not a valid zip archive*, *archive has no game.json*, *not a tableweb game export*, *this archive predates the file store*).
+Loading it creates an empty rectangular table. For a reproducible size, include
+`halfWidth` and `halfDepth` under `table`, since importing over a live table can
+retain omitted dimensions. The loader reports invalid archives with an error
+such as *not a valid zip archive*, *archive has no game.json*, *not a tableweb game
+export* or *this archive predates the file store*.
 
 ## game.json
 
@@ -50,7 +67,7 @@ The top level is an object with these keys. All are optional except `format` and
 | Key | What it holds |
 | --- | --- |
 | `name` | The table's display name |
-| `table` | Geometry and look: `halfWidth`, `halfDepth`, `wallHeight`, `seats`, an optional `shape` (the outline as loops of `[x, z]`), `surfaceTexture`, `wallTexture`, `lighting`, `surface`, and an optional `plan` — the [table plan](/docs/table-plan) the table was built from |
+| `table` | Geometry and look: `halfWidth`, `halfDepth`, `wallHeight`, `seats`, optional `shape.loops` (each loop is a list of `[x, z]` pairs), `surfaceTexture`, `wallTexture`, `lighting`, `surface` and an optional [`plan`](/docs/table-plan) |
 | `objects` | Every object on the table — the records described next. Containers nest their contents inside their own record |
 | `tableMeta` | The table layer: `zones` (a zone with a `seat` index is a player's seat; one with a `name` is a plan area), `snaps` (snap points), `drawings`, `decals`, `stamps`, `fonts`, `sounds`, `playlists`, sound banks and folders. The coordinate frame and the seat fields are on the [Table plan](/docs/table-plan) page |
 | `library` | The workbench templates: each with `id`, `name`, `category`, `kind`, the visual fields, an optional `script` (Lua source as a string) and the same `props` an object has |
@@ -78,7 +95,7 @@ Each entry in `objects` is the same record `obj:getJSON()` returns in a script a
              "collide": true, "lift": true, "liftHeight": 0.05, "rotateOnGrab": false,
              "upright": false, "drawable": false, "handable": false, "useGravity": true,
              "grab": [0, 0, 0], "defPos": [0, 0, 0], "defRot": [0, 0, 0] },
-  "visual": { "type": "die", "name": "", "dieType": "d6", "textures": {}, "model": "", "hull": [] },
+  "visual": { "type": "die", "name": "", "label": "Blue die", "dieType": "d6", "textures": {}, "model": "", "hull": [] },
   "script": { "source": "function onLoad() end", "enabled": true, "saved": "",
               "name": "", "description": "", "gmNotes": "", "tags": [],
               "vars": {}, "tables": {}, "rotationValues": [], "snaps": [] }
@@ -89,7 +106,11 @@ Each entry in `objects` is the same record `obj:getJSON()` returns in a script a
 - `pos` is metres with the table surface at `y = 0`; `rot` is a quaternion `[x, y, z, w]`.
 - `id` is the object's runtime id and is kept when an archive is *loaded*; a *module* gets fresh ids. `guid` is the stable identity that scripts, saves and snapshots key on.
 - Kind-specific fields sit at the top level: `cards` (a deck's cards), `code` (a card), `value` (a counter), `seconds`/`running`/`down` (a clock), `contents` (a container's items — full object records, recursively), `group` (rigid-group membership).
-- `visual` carries how the object looks: `type`, `name` (its label), `textures` (a map of slot → path), `model`, `hull` (a prop's collider points), `modelRotation`, `back`/`faces`/`names` (a custom deck), `state`/`states` (multi-state objects), a `tablet` document, and material scalars.
+- `visual` carries the object's appearance. Use `label` for the visible name and
+  `name` for its library reference. Other fields include `textures` (slot to
+  path), `model`, `hull`, `modelRotation`, `back`/`backs`/`faces`/`names` and
+  `cardRadius` for cards, `state`/`states` for alternate appearances, a
+  `tablet` document, and material settings. [Cards and atlases](/docs/workbench-cards)
 - `script` is the object's script *state*, not just its source: `source`, whether it is `enabled`, the `saved` string from `onSave`, the per-object `vars` and `tables`, and the contributions a script declares (`snaps`, `rotationValues`). Only the fields you give are read; a bare `{"source": "…"}` is enough for a new script.
 
 ## Files and hashes
@@ -114,9 +135,18 @@ The load reports counts for each class; a clean load says nothing. Accepted file
 
 ## Getting assets onto a table
 
-Files reach a table through the table itself: the **workbench** (upload a model, a texture, an image, a PDF) hashes them, stores them, and puts them in the gallery, from where objects and templates use them. That is the only upload path — there is none from scripts and none on the site outside the table.
+Upload models, images and PDFs into the asset gallery from Workbench. You can
+also drop an image or PDF on the table or paste it from the system clipboard to
+create a tablet with its proportions. Dropped or pasted audio files go to the
+table's sound library. For automated workflows, `asset_upload` uploads files to
+the gallery and returns the stored asset path. [MCP tools](/docs/mcp)
 
 To bring a set of files in at once, build an archive: put the bytes under `blobs/`, name them by hash in `manifest.json`, reference them from objects or from `assets` (the gallery) in `game.json`, and **Load from file…**. Files the store already holds need no bytes, only their entry in the manifest.
+
+The table server's `/export.zip` response is the manifest-based form. This is
+also what MCP's `archives_export` saves. For a backup you can move to an
+installation with a different file store, use **Download table…** to bundle the
+asset bytes.
 
 ## Building an archive by hand
 
@@ -128,7 +158,9 @@ It is possible, and a tool or an AI agent can do it. Three rules make it painles
 
 Scripts go in as source strings: `globalScript` for the table, `objects[].script.source` for an object, `library[].script` for a template. They must be written against the [TTCraft scripting API](/docs/scripting) — see below for what that means for saves from other tabletops. The [VS Code extension](/docs/vscode) is the comfortable way to edit them once the table is up.
 
-Loading replaces the objects on the table; the rest is merged. Load into an empty table when in doubt.
+Loading an archive replaces the current objects, table layout and Global script.
+Templates, effects and asset gallery entries merge into the existing library.
+Use the module import flow when you want to add content to the live table.
 
 ## Saves from other tabletops
 

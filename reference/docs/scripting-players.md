@@ -16,25 +16,27 @@ function onClick(player)
     p:print("You can't edit right now.")
     return
   end
-  print(p:getName(), p:getColor(), p:getSeat())
+  print(p:getDisplayName(), p:getColor(), p:getSeat())
 end
 ```
 
 ## Identity and capabilities
 
 ```lua
-p:id()           -- numeric player id
-p:getName()      -- display name
-p:getColor()     -- seat color name ("black" = GM)
-p:getSeat()      -- seat index
-p:isHost()       -- true for a table manager (Owner/Admin)
-p:getCaps()      -- list of capability names
-p:can("play")    -- capability check: "play" | "edit" | "admin" | "owner"
-                 -- (implications applied: an admin can everything a player can)
-p:changeColor("blue")   -- move the player to another seat color; false if taken
+p:id()              -- numeric player id
+p:getName()         -- base name (account username for signed-in players)
+p:getDisplayName()  -- nickname at this table, or the base name if unset
+p:getColor()        -- seat color name ("black" = GM)
+p:getSeat()         -- seat index
+p:isHost()          -- true for a table manager (Owner/Admin)
+p:getCaps()         -- list of effective capability names
+p:can("play")       -- capability check: "play" | "edit" | "admin" | "owner"
+p:changeColor("blue")  -- switch to blue, swapping with its current occupant if needed
 ```
 
-Capabilities are the rule-enforcement primitive: combine `p:can(...)` with [veto hooks](/docs/scripting-events#veto-hooks) to decide who may do what.
+Use `p:can(...)` with [veto hooks](/docs/scripting-events#veto-hooks) to enforce your rules. Capability checks include inherited permissions, so an Admin also has Play and Edit. `changeColor()` returns false for an unknown color or a player who has left.
+
+Use `getDisplayName()` for labels and messages addressed to players. It reads the current nickname on each call, so it reflects a nickname change or reset as soon as the server applies it. Nicknames can change and can be shared by multiple players. Use the numeric player ID for lookups during the connection. For initialization, read the name in `onPlayerConnect(player)` and use `tw.getPlayers()` to cover players already present when your script loads.
 
 ## Presence: pointer, selection, hands
 
@@ -63,14 +65,22 @@ end)
 p:showInputDialog("Bet how much?", "10", function(ok, value)
   if ok then self:setVar("bet", tonumber(value) or 0) end
 end)
-p:showMemoDialog("Session notes", "", function(ok, text) ... end)   -- multi-line
+p:showMemoDialog("Session notes", "", function(ok, text)
+  if ok then self:setVar("notes", text) end
+end)
 p:showOptionsDialog("Pick a class", { "Warrior", "Mage", "Rogue" }, 1,
-  function(ok, choice) ... end)                                     -- choice = the string
-p:showColorDialog(function(ok, colorName) ... end)                  -- seat palette
-p:chooseInHand(function(card) ... end)   -- private pick from their own hand (nil = cancel)
+  function(ok, choice)
+    if ok then self:setVar("class", choice) end
+  end)
+p:showColorDialog(nil, function(ok, colorName)
+  if ok then self:setVar("color", colorName) end
+end)
+p:chooseInHand(function(card)
+  if card then p:print("You picked a card.") end
+end)
 ```
 
-Dialog callbacks are **one-shot**: they fire once, and are dropped if the owning script reloads before the player answers.
+Dialog callbacks run once and are dropped if the owning script reloads before the player answers. `showMemoDialog()` accepts multiline text, `showOptionsDialog()` returns the selected string, and `showColorDialog()` returns a name from the seat palette. `chooseInHand()` opens a private pick and passes `nil` on cancel.
 
 ## Camera and pings
 
@@ -78,6 +88,7 @@ Dialog callbacks are **one-shot**: they fire once, and are dropped if the owning
 p:lookAt({ position = Vector(0, 0, 0), distance = 1.2, pitch = 55, yaw = 90 })
 p:setCameraMode("top")        -- "top" | "front" | "side" | "free" | "default"
 p:getCameraMode()
+p:getCameraModes()            -- supported mode names, including aliases
 p:attachCameraToObject({ object = hero, distance = 0.8, pitch = 45 })
 p:detachCameraFromObject()
 p:ping(0.1, 0, 0.2)           -- a brief ping ring on the table (also accepts a Vector)
@@ -91,20 +102,21 @@ Drive the player's client-side tooling — a script toolbar can switch the nativ
 p:setTool("draw", { mode = "pencil", color = "#3366ff", width = 4 })
 p:setTool("")                       -- back to the pointer
 p:setToolOptions({ color = "#ff0000" })   -- tweak without switching
+p:getToolIds()                         -- supported tool ids
 ```
 
 Tool ids: `draw`, `zone`, `snap`, `measure`, `marker`, `gizmoMove`, `gizmoRotate`, `gizmoScale`, or `""`/nil for the pointer. Options: draw `mode`/`color`/`width`, gizmo `snap`/`space`, measure `unit` — only the keys you pass change.
 
 ## Moderation
 
-Moderation is trusted: scripts are authored by whoever controls the table, so these take effect from any script.
+Scripts can mute, blindfold, and kick players at the table. The script's author must have Admin or Owner permissions to promote or demote a player.
 
 ```lua
-p:mute()             / p:mute(false)      -- freeze / unfreeze their game actions
+p:mute()                                  -- freeze game actions; p:mute(false) restores them
 p:getMuted()
 p:setBlindfolded(true)                    -- black out their view
 p:getBlindfolded()
-p:promote()          / p:demote()         -- raise to / drop from table manager
+p:promote()                               -- grant Admin; p:demote() drops manager permissions
 p:kick()                                  -- disconnect from the table
 ```
 
@@ -118,30 +130,35 @@ p:kick()                                  -- disconnect from the table
 Turns.enable(true)          -- start turns (default order: seated players by seat)
 Turns.isEnabled()
 Turns.current()             -- whose turn it is (player id; 0 = none)
-Turns.order()               / Turns.setOrder({3, 1, 2})
+Turns.order()               -- read the current order
+Turns.setOrder({3, 1, 2})    -- set a custom list of player IDs
 Turns.endTurn()             -- advance (alias Turns.next())
 Turns.previous()            -- step back
-Turns.getNext()             / Turns.getPrevious()   -- peek without moving
+Turns.getNext()             -- peek forward; Turns.getPrevious() peeks back
 Turns.pass()                -- advance, but only while passing is enabled
 ```
 
 Behaviour flags (get/set pairs):
 
 ```lua
-Turns.setReverse(true)              / Turns.getReverse()
-Turns.setSkipEmpty(true)            / Turns.getSkipEmpty()            -- skip empty seats
-Turns.setPassEnabled(true)          / Turns.getPassEnabled()
-Turns.setDisableInteractions(true)  / Turns.getDisableInteractions()  -- only the current
-                                    -- player may act while enabled
+Turns.setReverse(true)              -- read with Turns.getReverse()
+Turns.setSkipEmpty(true)            -- read with Turns.getSkipEmpty()
+Turns.setPassEnabled(true)          -- read with Turns.getPassEnabled()
+Turns.setDisableInteractions(true)  -- read with Turns.getDisableInteractions()
 ```
+
+With interactions disabled out of turn, only the current player can use capability-gated commands. Commands that require no capability remain available.
 
 Enforce turns yourself with the global `onPlayerAction` veto when you need finer rules:
 
 ```lua
 function onPlayerTurn(cur, prev)
-  tw.broadcastToAll(tw.getPlayer(cur):getName() .. "'s turn")
+  local p = tw.getPlayer(cur)
+  if p then tw.broadcastToAll(p:getDisplayName() .. "'s turn") end
 end
 function onPlayerAction(player, action, target)
-  if Turns.isEnabled() and player ~= Turns.current() then return false end
+  if player == 0 then return end -- table automation
+  local current = Turns.current()
+  if Turns.isEnabled() and current ~= 0 and player ~= current then return false end
 end
 ```

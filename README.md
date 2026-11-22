@@ -51,7 +51,7 @@ local MCP servers. Get [Node.js LTS](https://nodejs.org/en/download) if needed.
 No VS Code extension or GitHub token is required.
 
 ```sh
-npm install --global https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
+npm install --global https://ttcraft.net/downloads/ttcraft-mcp-0.1.3.tgz
 ttcraft-mcp setup
 ```
 

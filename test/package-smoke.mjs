@@ -6,7 +6,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const archive = resolve(process.argv[2] || 'ttcraft-mcp-0.1.2.tgz');
+const archive = resolve(process.argv[2] || 'ttcraft-mcp-0.1.3.tgz');
 const temp = await mkdtemp(join(tmpdir(), 'ttcraft-mcp-package-'));
 let client;
 try {

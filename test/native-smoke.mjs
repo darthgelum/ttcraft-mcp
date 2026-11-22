@@ -72,6 +72,51 @@ try {
   const example = JSON.parse(await readFile('examples/four-player-table.json', 'utf8'));
   await call('blueprint_apply', { blueprint: example, dry_run: false });
   const withExample = await call('objects_list'); assert.equal(withExample.total, twice.total + 3);
+  const readProps = async id => JSON.parse((await call('object_read', { object: id, refresh: true })).text).props;
+  const spawnObject = async (spec, x, allow_weightless = false) => {
+    const reply = await call('objects_spawn', { spec, position: [x, .25, -.48], allow_weightless });
+    const object = reply.observed_new_objects.find(o => o.name === spec.label);
+    assert.ok(object, JSON.stringify(reply.observed_new_objects));
+    return object.id;
+  };
+  const ordinary = await spawnObject({ kind: 'chip', label: 'Ordinary chip' }, -.85);
+  const weightless = await spawnObject({ kind: 'chip', label: 'Weightless chip', props: { useGravity: false } }, -.68, true);
+  assert.equal((await readProps(ordinary)).useGravity, true);
+  assert.equal((await readProps(weightless)).useGravity, false);
+  await delay(300);
+  const chips = (await call('objects_list')).objects;
+  assert.ok(chips.find(o => o.id === ordinary).position[1] < .1);
+  assert.ok(chips.find(o => o.id === weightless).position[1] > .2);
+  const doc = { v: 3, page: { w: 720, h: 360 }, sides: [{ pages: [{ id: 'p1' }], active: 'p1' }], elements: [] };
+  const imageDoc = { ...doc, page: { w: 480, h: 480 },
+    sides: [{ pages: [{ id: 'p1', bg: { asset: asset.path } }], active: 'p1' }] };
+  const verifyPage = async (id, { w, h }) => {
+    const [x, , z] = (await readProps(id)).scale;
+    assert.ok(Math.abs(x * .21 - w * .0254 / 75) < 1e-5);
+    assert.ok(Math.abs(z * .297 - h * .0254 / 75) < 1e-5);
+  };
+  await verifyPage(await spawnObject({ kind: 'tablet', label: 'Landscape tablet', tablet: doc }, -.45), doc.page);
+  await verifyPage(await spawnObject({ kind: 'tablet', label: 'Square image tablet', tablet: imageDoc }, -.18), imageDoc.page);
+  const staged = await spawnObject({ kind: 'tablet', label: 'Attach document later' }, .12);
+  await call('table_command', { command: 'settabletdoc', arguments: { id: staged, doc } });
+  await verifyPage(staged, doc.page);
+  await call('table_command', { command: 'settabletdoc', arguments: { id: staged, doc: imageDoc } });
+  await verifyPage(staged, doc.page);
+  await call('table_command', { command: 'settabletdoc', arguments: { id: staged, doc: imageDoc, fitPage: true } });
+  await verifyPage(staged, imageDoc.page);
+  const sized = await spawnObject({ kind: 'tablet', label: 'Explicit size', tablet: doc, props: { scale: [2, 1, 2] } }, .58);
+  assert.deepEqual((await readProps(sized)).scale, [2, 1, 2]);
+  const beforeLua = new Set((await call('objects_list')).objects.map(o => o.id));
+  await call('script_write', { code: `function onLoad()
+    tw.spawnTablet{position={x=.85,y=.25,z=.45}, document={page={w=360,h=720},elements={}}}
+  end` });
+  let lua;
+  for (let i = 0; i < 30 && !lua; i++) {
+    lua = (await call('objects_list', { query: 'tablet' })).objects.find(o => !beforeLua.has(o.id));
+    if (!lua) await delay(50);
+  }
+  assert.ok(lua);
+  await verifyPage(lua.id, { w: 360, h: 720 });
   const spawnedToken=await call('objects_spawn',{spec:{kind:'token',label:'Flat token',token:{front:asset.path,back_mode:'copy',shape:'circle',width_mm:32,height_mm:32,thickness_mm:2}},position:[-.3,.04,0]});
   const tokenObject=spawnedToken.observed_new_objects.find(o=>o.kind==='prop');assert.ok(tokenObject);
   const tokenEdit=await call('table_command',{command:'tokenset',arguments:{id:tokenObject.id,token:{back_mode:'mirror',thickness_mm:3}}});
@@ -80,11 +125,23 @@ try {
   const deckObject=spawnedDeck.observed_new_objects.find(o=>o.kind==='deck');assert.ok(deckObject);
   const formatEdit=await call('table_command',{command:'cardformat',arguments:{id:deckObject.id,format:'tarot',landscape:true}});
   assert.equal(formatEdit.status,'server_response');assert.equal(formatEdit.response.type,'cardformatresult');assert.equal(formatEdit.response.ok,true);
+  const fan = await spawnObject({ kind: 'deck', label: 'MCP spread probe', faces: [asset.path, asset.path, asset.path] }, .76);
+  const cardsBefore = new Set((await call('objects_list')).objects.map(o => o.id));
+  await call('table_command', { command: 'shuffle', arguments: { id: fan } });
+  await call('table_command', { command: 'spread', arguments: { id: fan, mode: 'facedown' } });
+  let spreadCards = [];
+  for (let i = 0; i < 40 && spreadCards.length < 3; i++) {
+    spreadCards = (await call('objects_list')).objects.filter(o => o.kind === 'card' && !cardsBefore.has(o.id));
+    if (spreadCards.length < 3) await delay(50);
+  }
+  assert.equal(spreadCards.length, 3);
+  assert.ok(!(await call('objects_list')).objects.some(o => o.id === fan));
   await call('archives_export', { output_path: join(temp, 'native.zip') });
   await call('archives_import', { file_path: join(temp, 'native.zip') });
   const imported = await call('objects_list'); assert.ok(imported.objects.some(o => o.guid === obj.guid));
   console.log(JSON.stringify({ native_protocol: connected.protocol, initial_objects: first.total, final_objects: withExample.total,
-    blueprint_repeat: 'passed', bundled_example: 'passed', position_and_lock: 'passed', lua_compile: 'passed', asset_upload: 'passed', named_snapshot: 'passed', export_import: 'passed' }, null, 2));
+    blueprint_repeat: 'passed', bundled_example: 'passed', position_and_lock: 'passed', lua_compile: 'passed', asset_upload: 'passed', named_snapshot: 'passed', export_import: 'passed',
+    gravity_opt_in: 'passed', tablet_page_fit: 'passed', mcp_spread: 'passed' }, null, 2));
 } catch (error) { process.stderr.write(output.slice(-6000) + '\n'); throw error; }
 finally {
   await client?.close();

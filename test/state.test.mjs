@@ -47,9 +47,9 @@ test('blueprint validation rejects duplicate keys, missing references and reserv
   assert.throws(() => validateBlueprint({ id: 'demo', objects: [{ ...obj, spec: { kind: 'chip', type: 'resettable' } }] }), /reserved/);
   assert.throws(() => validateBlueprint({ id: '../oops' }));
 });
-test('catalog exposes build/gameplay domains but excludes chat and transport internals', () => {
-  for (const cmd of ['spawn', 'setscript', 'tableplan', 'deal', 'containerset', 'settabletdoc', 'lighting', 'music', 'timemachine']) assert.ok(commandMap.has(cmd), cmd);
-  for (const cmd of ['chat', 'chatdm', 'identify', 'webrtc_offer', 'echo']) assert.equal(commandMap.has(cmd), false, cmd);
+test('catalog exposes authoring operations and excludes chat, transport and player gestures', () => {
+  for (const cmd of ['spawn', 'setscript', 'tableplan', 'deal', 'shuffle', 'gather', 'spread', 'containerset', 'settabletdoc', 'lighting', 'music', 'timemachine']) assert.ok(commandMap.has(cmd), cmd);
+  for (const cmd of ['chat', 'chatdm', 'identify', 'webrtc_offer', 'echo', 'grab', 'grabspin', 'move', 'release', 'pull', 'hand', 'unhand']) assert.equal(commandMap.has(cmd), false, cmd);
 });
 test('credentials only travel over HTTPS or loopback transports', () => {
   assert.equal(safeUrl('http://127.0.0.1:1234').protocol, 'http:');

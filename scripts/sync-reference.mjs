@@ -9,7 +9,10 @@ const docs = resolve(process.argv[3] || join(root, '../ttcraft/resources/docs'))
 await mkdir(join(root, 'reference/docs'), { recursive: true });
 // Capture the exact handler, including chained aliases. This is a reference
 // snapshot, not a runtime dependency on a developer's checkout.
-const excluded = new Set(['chat', 'chatdm', 'webrtc_offer', 'webrtc_ice', 'identify', 'echo', 'ping', 'thumbput']);
+const excluded = new Set([
+  'chat', 'chatdm', 'webrtc_offer', 'webrtc_ice', 'identify', 'echo', 'ping', 'thumbput',
+  'grab', 'grabspin', 'move', 'release', 'pull', 'hand', 'unhand',
+]);
 const commands = [];
 for (const file of (await readdir(join(tableweb, 'server'))).filter(f => /^commands.*\.cpp$/.test(f))) {
   const source = await readFile(join(tableweb, 'server', file), 'utf8');

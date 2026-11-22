@@ -141,6 +141,24 @@ export class TableSession {
   command(msg: Json, responseType?: string, timeout = 12000): Promise<Json> {
     return this.exclusive(() => this.execute(msg, responseType, timeout));
   }
+  checkGravity(input: Json, allowWeightless = false): void {
+    if (allowWeightless) return;
+    const type = String(input.type).toLowerCase();
+    let disablesGravity = type === 'setprops' && input.useGravity === false;
+    if (type === 'spawn') {
+      const library = this.state.messages.get('library')?.items || [];
+      const template = typeof input.template === 'string' && input.template
+        ? library.find((item: Json) => item.id === input.template) : undefined;
+      const source: Json = template ?? input;
+      // Native spawn uses the template in place of inline fields. A set piece
+      // replaces the root props record wholesale when it has one of its own.
+      disablesGravity = Array.isArray(source.set) && source.set.length > 0
+        ? source.set.slice(0, 256).some((piece: Json | null) =>
+            (piece && Object.hasOwn(piece, 'props') ? piece.props : source.props)?.useGravity === false)
+        : source.props?.useGravity === false;
+    }
+    if (disablesGravity) throw new Error('This operation disables gravity. Keep gravity on for ordinary objects. Set allow_weightless to true only if the user asked for a weightless object.');
+  }
   /** Call only inside exclusive() for a multi-step workflow. Never replays mutations. */
   async execute(input: Json, responseType?: string, timeout = 12000): Promise<Json> {
     await this.auth.config.checkTableAccess?.(this.tableId);
@@ -148,8 +166,11 @@ export class TableSession {
     const type = String(input.type).toLowerCase();
     if (!commandMap.has(type)) throw new Error(`Unknown or unavailable command '${type}'. Use commands_search. Chat and transport commands are not exposed.`);
     if ('requestId' in input) throw new Error('requestId is managed by MCP; omit it.');
+    const { allow_weightless, ...fields } = input;
+    this.checkGravity(fields, allow_weightless === true);
+    if (type === 'settabletdoc' && fields.fitPage === undefined) fields.fitPage = 'initial';
     const requestId = ++this.requestId;
-    const msg = { ...input, type, requestId };
+    const msg = { ...fields, type, requestId };
     const responseTypes = responseType ? [responseType] : directReplies[type];
     const beforeCursor = this.cursor;
     const marker = Date.now() + requestId / 100000;

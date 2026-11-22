@@ -80,6 +80,33 @@ test('library patch preserves fields, and native spawning/removal update the bin
   assert.equal((await call('objects_remove', { objects: [guid] })).isError, false);
   assert.equal((await call('objects_list', { query: guid })).total, 0);
 });
+test('weightless spawns and patches need explicit opt-in, including linked sets and blueprints', async () => {
+  const position = [0, 0.2, 0];
+  const spec = { kind: 'chip', props: { useGravity: false } };
+  const linked = await call('library_save', { spec: { name: 'Weightless set', kind: 'chip',
+    set: [{}, { props: { useGravity: false } }],
+  } });
+  const blueprint = { id: 'weightless', objects: [{ key: 'chip', spec, position }] };
+  const before = mock.calls.length;
+  for (const reply of [
+    await call('objects_spawn', { spec, position }),
+    await call('objects_spawn', { template: linked.response.id, position }),
+    await call('objects_patch', { objects: ['guid-one'], properties: { useGravity: false } }),
+    await call('table_command', { command: 'spawn', arguments: spec }),
+    await call('batch_execute', { dry_run: false, commands: [{ command: 'spawn', arguments: spec }] }),
+    await call('blueprint_apply', { dry_run: false, blueprint }),
+  ]) {
+    assert.equal(reply.isError, true);
+    assert.match(reply.error || reply.results[0].error, /allow_weightless/);
+  }
+  assert.equal(mock.calls.length, before);
+  const spawned = await call('objects_spawn', { spec, position, allow_weightless: true });
+  assert.equal(spawned.isError, false);
+  const command = mock.calls.slice(before).find(c => c.type === 'spawn');
+  assert.equal(command.props.useGravity, false);
+  assert.equal('allow_weightless' in command, false);
+  await call('objects_remove', { objects: [spawned.observed_new_objects[0].guid] });
+});
 test('blueprint dry run, tracked repeat builds and locked-object updates do not duplicate', async () => {
   const blueprint = { id: 'demo', plan: { seats: { count: 4 } }, templates: [{ key: 'token', spec: { kind: 'chip', name: 'Demo token', category: 'Demo' } }],
     objects: [{ key: 'red', template: '$token', name: 'Red token', position: [0.4, 0.1, 0], locked: true, script: '-- red' }] };

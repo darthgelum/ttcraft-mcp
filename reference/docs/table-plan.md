@@ -37,18 +37,19 @@ Rotations are about the vertical axis unless said otherwise. Three conventions m
 | A zone's `rot` (seats and areas) | degrees | the zone's own frame turned about its centre. Its local `+z` is the side a seat **faces**: `rot: 0` faces `+z` (a seat on the far edge), `90` faces `-x` (the right edge), `180` faces `-z` (the near edge, seat 0's usual place), `270` faces `+x` (the left edge) |
 | A snap point's `yaw` | degrees | the orientation a dropped object is turned to, i.e. an object yaw |
 
-The limits below come from the wire format and the physics, not from taste. Positions travel as sixteen-bit integers in tenths of a millimetre, so nothing on a table can be further than about 3.27 m from the centre.
+Live object positions are encoded in 0.1 mm steps, with about ±3.27 m of range on each axis. The table outline and authored features have their own limits.
 
 | Limit | Value |
 | --- | --- |
 | Table span per axis | 0.8 – 6 m |
-| Any coordinate | within ±3 m of the centre |
+| Outline vertices | within ±3 m on both X and Z |
 | Seats | 0 – 10 (one colour each: black, red, blue, green, yellow, orange, purple, cyan, pink, white) |
 | Rail height | 0.005 – 0.3 m (drawn height only; the invisible wall is always 1.2 m) |
 | Outline | up to 64 loops, 2048 points per loop, 8192 in all |
 | A seat's footprint | 0.5 × 0.3 m by default, 0.04 – 3 m either way |
+| Plan entries | up to 256 area definitions and 512 snap definitions before per-seat expansion |
 
-A card is 70 mm wide, a hand of them about 0.25 m; a figure's base is about 0.05 m. An object that ends up outside the outline has no floor under it: it falls, and the table puts it back on a free patch of felt.
+Use the actual dimensions of your pieces when laying out a plan. For example, the poker preset is 63.5 mm wide in portrait orientation and cards can be resized to other dimensions. An object that falls off the table is put back on a free patch of felt. [Card formats](/docs/workbench-cards)
 
 ## The plan
 
@@ -74,6 +75,14 @@ The plan is a JSON object. It lives in an archive as `table.plan` in `game.json`
 ```
 
 Every key is optional. A plan mentions what it wants changed and leaves the rest alone: no `shape`, `width` or `depth` keeps the current outline; no `seats` keeps the current seat ring. `areas` and `snaps`, on the other hand, are the plan's own — they are rebuilt from the plan on every apply, and a plan without them has none.
+
+For MCP, use `table_plan_apply` with this object as `plan`. Set `merge: true`
+to patch the stored plan. The native command takes
+`{"type":"tableplan","plan":{...},"merge":true}` and replies with
+`tableplanresult`. The command requires Edit permission. With merge enabled,
+a JSON `null` removes a key from the stored plan. To clear a list from Lua,
+read `Table.plan()`, remove the key from that table and pass the result to
+`Table.replace()`. An empty Lua table is serialized as a JSON object.
 
 ### The outline
 
@@ -101,7 +110,7 @@ An ellipse is a 64-gon, as in the editor. Instead of `shape`, `width` and `depth
 - `{ "count": 6, "hand": true }` — the same, with hand capture armed on every seat;
 - a **list** of seats placed by hand: `{ "seat": 0, "cx": 0, "cz": 0.53, "w": 0.5, "d": 0.3, "rot": 180, "hand": true, "tags": [] }`. `seat` defaults to the position in the list; `rot` defaults to facing the table centre; `w` and `d` to 0.5 × 0.3 m.
 
-A seat is a rectangle on the felt with its **outer** long edge against the rail. It gives the player everything that answers "where do I sit": the nameplate, the opening camera, the anchor cards are dealt to, and the fan their hand is laid out in. `hand: true` additionally turns it into a **hand zone**: a card the seated player (or the GM) drops on it goes into their hand. Without a hand zone cards can still be dealt to a player, but nothing can be put into a hand by dropping it. Seats carry the seat's colour; the first player to join takes black and is the game master.
+A seat is a rectangle on the felt with its **outer** long edge near the rail. It anchors the player's nameplate, opening camera, dealt cards and hand fan. `hand: true` makes it a **hand zone** that can accept cards placed into the seated player's hand. Dealing and the on-screen hand are also available when the seat zone itself has hand capture off. Black is reserved for the GM. On a hosted table, account permissions determine who can take that seat. Seat 0 can also belong to red when the GM is outside the seat ring.
 
 Automatic placement follows the editor's own rules: seats are 0.5 × 0.3 m, sit 2 cm off the rail, keep 0.3 m of clear felt between neighbours, go to the **middle of a straight edge** rather than across a corner, and are spread by arc length around a round or oval table. Seat 0 is at the near edge; indices then run around the table in order, so seat distance is table distance and the second player to join sits across from the first. When not every seat fits, the ones that do are placed and the report says so.
 
@@ -115,16 +124,20 @@ Automatic placement follows the editor's own rules: seats are 0.5 × 0.3 m, sit 
 | `cx`, `cz`, `w`, `d`, `rot` | the footprint, like a seat's |
 | `y`, `h` | the box's centre height and height (defaults 0.1 and 0.2 m; a zone is a box, so both matter for what it contains) |
 | `tags` | only objects carrying one of these count as inside |
-| `layout` | `true`, or a table of [layout options](/docs/scripting-world#layout-zones) — `spacing`, `perRow`, `direction`, `alternate`, `facing`, `hspread`, `vspread`, `combine`, `maxPerGroup`, `sort` — to keep the contents tidied |
+| `layout` | `true`, or a table of [layout options](/docs/scripting-world#layout-zones) — `spacing`, `perRow`, `direction`, `alternate`, `facing`, `hspread`, `vspread`, `combine`, `maxPerGroup`, `sort`, `randomLoad` — to keep the contents tidied |
 | `snap` | `true`, or `{ "range": 0.05, "tags": [] }`: also put a snap point at the centre, turned the way the area faces |
-| `hidden` | a hidden zone: `true`, `"invisible"` or `"masked"` (the owner is set at play time) |
+| `hidden` | `true` or `"invisible"` hides objects, `"masked"` shows grey silhouettes. A plan creates the zone with no player owner. |
 | `each` | `"seat"`: stamp this area once per seat, see below |
 
 With `each: "seat"` the area is written in the **seat's own axes**: `x` runs to the seated player's right along the rail, `z` ahead of them into the table, both from the seat's centre. One area per seat is created, named `name:seat` — `discard:0`, `discard:1`, … — and turned with the seat, so the same plan lays out a two-player and a six-player table.
 
 ### Snap points
 
-`snaps` are table-level snap points: a dropped object within `range` (default 5 cm) is pulled to the point and, when `yaw` is given, turned to it. Each is `{ "x", "z", "yaw", "range", "tags", "each" }`; `each: "seat"` stamps one per seat in seat axes, facing the seat like a dealt card, turned further by `yaw`.
+`snaps` are table-level snap points. Each requires `x` and `z` and can specify
+`y` (default 2 cm above the felt), `yaw`, `range` (default 5 cm, clamped to
+0.5–100 cm) and `tags`. A matching dropped object within range snaps into place
+and takes the supplied yaw. With `each: "seat"`, the plan stamps one per seat
+in seat axes, facing the seat like a dealt card, turned further by `yaw`.
 
 ### What applying a plan does
 
@@ -141,7 +154,11 @@ The reply of every apply is a report: `{ "ok": true, "warnings": [...], "seats":
 
 ### In an archive and between modules
 
-In `game.json` the plan sits at `table.plan`. An archive that carries the plan and nothing it produced — no `shape.loops`, no seat zones — is compiled when it is loaded, before any script runs. An archive the table exported carries both, and is loaded as it is; the zones and snap points a plan wrote are marked `"plan": true` in `tableMeta`.
+In `game.json` the plan sits at `table.plan`. A plan-only archive is compiled at
+load time. Exported zones and snap points that came from a plan have
+`"plan": true` in `tableMeta`. When these entries exist, the loader uses the
+saved geometry and entries as they are. For a hand-written archive, supply
+the plan by itself or supply all the compiled state together.
 
 When a module is loaded as an addition, its **table block** — outline, size, rail, look and plan — is taken only if the load dialog says the table comes from that module; then the host's seat ring and plan areas go with the host's outline and the module's come in, compiled from its plan if it carries only that. A module whose table is not taken contributes its objects, templates and ordinary zones, never a second ring of seats. So a module that must have its own table ships a plan; a module meant to sit on someone else's table places its things **relative to the seats** from its script (below) and does not.
 
@@ -164,23 +181,27 @@ Table.replace(plan)  -- swap the plan
 Table.reset()
 ```
 
-`Table.seat(i)` answers for any seat index, with a zone or without one (then the historic edge position):
+`Table.seat(i)` answers for any nonnegative seat index. It uses the seat zone
+when there is one, or a computed position along the edge.
 
 ```lua
 local s = Table.seat(0)
-s.seat, s.color          -- 0, "black"
-s.center                 -- Vector: the seat zone's centre
-s.position               -- Vector: the middle of its outer edge, where the player is
-s.forward                -- Vector: the direction the player faces, into the table
-s.right                  -- Vector: to the player's right along the rail
-s.rotation               -- the zone's rot, degrees
-s.width, s.depth, s.hand -- the footprint and whether it captures into the hand
-s.zone                   -- the zone handle, or nil when the seat has none
-s.player                 -- the id of the player sitting there, or nil
-s.toWorld({ x = 0, z = 0.25 })   -- a point in the seat's axes as a world Vector (called with a dot)
+local seat, colour = s.seat, s.color          -- index and current seat colour
+local centre, position = s.center, s.position -- zone centre and midpoint of its outer edge
+local forward, right = s.forward, s.right     -- inward and along the rail from the player's view
+local degrees = s.rotation
+local width, depth, hand = s.width, s.depth, s.hand
+local zone, player = s.zone, s.player          -- optional zone handle and player ID
+local point = s.toWorld({ x = 0, z = 0.25 })    -- world Vector, called with a dot
 ```
 
 A zone handle gained `zone:getName()` and `zone:getSeat()`, so `obj:getZones()` can tell a seat from an area. Everything else on it — position, scale, rotation, options — works on plan zones as on script zones, and a change made through the handle is shown to every player.
+
+For a private area, use `Table.area("name"):setHidden(playerId, "invisible")`
+once the player is known. Use the current seat occupant's player ID from
+`Table.seat(index).player` when ownership follows a seat. Reassign the owner
+when the occupant changes. Until a hidden area has an owner, its mode applies
+to everyone. [Hidden zone modes and examples](/docs/scripting-world#hidden-zones)
 
 The pattern that makes a module portable is to lay out per player from the seats rather than from fixed coordinates:
 
@@ -201,7 +222,13 @@ end
 
 ## Checking that it fits
 
-Before shipping a module, run the plan through the table (or a script) and read the report. What the table refuses outright: an outline that crosses itself, that reaches past ±3 m, that is under 0.8 m on an axis, or that has fewer than three points; more than ten seats; two seats with the same index; an area without a name. What it warns about and does anyway: fewer seats fit than asked, a hand-placed seat hanging over the rail or closer than 0.3 m to another, an area or snap point off the felt, a per-seat area on a table with no seat zones.
+Before shipping a module, apply the plan on a test table and check the report.
+Crossing outlines, polygon extents outside the bounds, duplicate seat indices,
+more than ten explicitly placed seats and unnamed areas produce errors.
+Automatic seat counts above ten are clamped and produce a warning. The table
+also warns when fewer automatic seats fit, a manually placed seat overhangs
+the rail or sits within 0.3 m of another, an area or snap point is off the felt,
+or a per-seat area has no seat zones to attach to.
 
 A quick fit checklist for an outline meant for `n` players: the perimeter needs at least `n × 0.8` m of rail; a corner costs about a seat's worth on either side; a round table seats fewer than a rectangle of the same perimeter, because its rim curves away from the corners of a straight seat.
 

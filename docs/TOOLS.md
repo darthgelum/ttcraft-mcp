@@ -118,6 +118,29 @@ barrier proves the server processed the command stream; the result is explicitly
 Spawn results contain observed new objects and can include simultaneous spawns
 from other players. Blueprints use unique recovery markers for their own creations.
 
+The tool connection has no player seat, cursor, or hand. For placement use
+`objects_move`. For deck authoring use `table_command` with `shuffle`, `gather`
+or `spread` (`mode: "faceup"` or `"facedown"`). For an explicit test deal, the
+`deal` arguments are `{id, n, players: [playerId]}`. Use current seated player
+IDs from `state_read` and a current object ID from `object_read`. A test deal
+requires Edit permission. Deck Lua callbacks receive actor `0` for MCP actions.
+
+Ordinary objects use gravity. Keep `useGravity` omitted for normal pieces, and
+use locking for fixed scenery. Disabling gravity with `spawn`/`setprops` or
+spawning a weightless library template requires `allow_weightless: true` on the
+MCP tool call, batch item or blueprint object. For an inline spawn, the actual
+physics value belongs in `spec.props.useGravity`. Lua handlers and imported
+modules run their own authored behavior.
+
+For a tablet, pass its document as `spec.tablet`. Set `page: {w, h}` in pixels.
+For an image tablet, use the source image's aspect ratio for the page and
+reference the uploaded image in the page background `bg: {asset}`. The table
+fits the slab to the page at creation. Omit `spec.props.scale` for automatic
+sizing. To choose a custom physical size, scale factors are relative to the
+base 0.21 m × 0.297 m slab, with X for width and Z for height. The first
+`settabletdoc` on a plain, unscaled tablet also fits by default. Pass
+`fitPage: true` to refit an existing tablet or `false` to keep its physical size.
+
 Commands are serialized per table because many replies have no request id. After
 a request timeout, the connection closes to prevent a late reply from satisfying
 a later request. Reconnect and inspect before retrying; no mutation is replayed

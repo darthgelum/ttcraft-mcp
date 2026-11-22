@@ -38,16 +38,19 @@ A dead handle (its object was removed) returns `""`.
 ## Identity and metadata
 
 ```lua
-obj:id()              -- stable numeric id
+obj:id()              -- numeric id of this live instance
 obj:guid()            -- string id / alias; defaults to the numeric id
 obj:setGuid("deck1")  -- set a custom string id (must be unique)
 obj:kind()            -- kind string, see above
-obj:getName()         / obj:setName("King")          -- display name ("" default)
-obj:getDescription()  / obj:setDescription("...")    -- public blurb
-obj:getGMNotes()      / obj:setGMNotes("...")        -- GM-only notes
+obj:getName()
+obj:setName("King")          -- script-assigned name ("" default)
+obj:getDescription()
+obj:setDescription("...")    -- public blurb
+obj:getGMNotes()
+obj:setGMNotes("...")        -- GM-only notes
 ```
 
-Name, description and GM notes persist with the table snapshot, like tags and vars.
+Name, description and GM notes persist with the snapshot, like tags and vars. Use a unique GUID alias to find the object from another script. The instance id changes when an object is cloned or reloaded.
 
 ### Per-player visibility
 
@@ -67,11 +70,14 @@ obj:getPosition()           -- Vector (alias obj:position())
 obj:setPosition(x, y, z)    -- teleport; also accepts {x=, y=, z=}
 obj:translate(dx, dy, dz)   -- move by a delta
 obj:getRotation()           -- Vector of Euler degrees
-obj:setRotation(x, y, z)    / obj:rotate(dx, dy, dz)
-obj:getScale()              / obj:setScale(x, y, z)   -- collider + visual scale
+obj:setRotation(x, y, z)
+obj:rotate(dx, dy, dz)
+obj:getScale()
+obj:setScale(x, y, z)   -- collider + visual scale
 obj:getBounds()             -- { center = Vector, size = Vector } (AABB)
 obj:getTransformForward()   -- unit basis vectors of the current rotation
-obj:getTransformUp()        / obj:getTransformRight()
+obj:getTransformUp()
+obj:getTransformRight()
 obj:localToWorld(v)         -- local point -> world (scale, rotation, position applied)
 obj:worldToLocal(v)         -- inverse
 ```
@@ -82,7 +88,7 @@ Server-side eased glides — use these for animated dealing, tidying or returnin
 
 ```lua
 obj:setPositionSmooth(pos)            -- glide to pos; (pos, collide, fast) optional flags
-obj:setRotationSmooth(rot)            -- eased rotation to Euler degrees
+obj:setRotationSmooth(rot)            -- eased rotation; also accepts (rot, collide, fast)
 obj:getPositionSmooth()               -- the glide's target Vector, or nil when not gliding
 obj:isSmoothMoving()                  -- true while a glide is in progress
 ```
@@ -90,11 +96,14 @@ obj:isSmoothMoving()                  -- true while a glide is in progress
 ## Physics
 
 ```lua
-obj:getVelocity()         / obj:setVelocity(v)
-obj:getAngularVelocity()  / obj:setAngularVelocity(w)
+obj:getVelocity()
+obj:setVelocity(v)
+obj:getAngularVelocity()
+obj:setAngularVelocity(w)
 obj:addForce(x, y, z)     -- adds to linear velocity (an impulse-style nudge)
 obj:addTorque(x, y, z)    -- adds to angular velocity
-obj:getUseGravity()       / obj:setUseGravity(false)  -- float in place, still collidable
+obj:getUseGravity()
+obj:setUseGravity(false)  -- turn off gravity while keeping collisions
 obj.use_gravity = false   -- field alias for the same toggle
 ```
 
@@ -118,11 +127,12 @@ For a rigid **weld** of several objects into one assembly, see `tw.group` in the
 obj:flip()                -- animated turn-over
 obj:roll()                -- toss with an upward impulse and spin (works on any object)
 obj:randomize()           -- deck: shuffle; bag: shuffle entries; else: physical toss
-obj:setLock(true)         / obj:isLocked()   -- freeze in place
+obj:setLock(true)
+obj:isLocked()   -- freeze in place
 obj:reset()               -- return to the home pose (default position/rotation), at rest
 obj:clone()               -- duplicate next to it; returns the new handle
-obj:reload()              -- respawn in place: full-fidelity copy (skin, script, guid,
-                          -- tags, vars all kept), original removed; returns the new handle
+obj:reload()              -- respawn in place, retaining the custom GUID alias and script data
+                          -- returns the new handle; the original is removed
 obj:destruct()            -- remove from the table (alias obj:destroy())
 ```
 
@@ -143,7 +153,8 @@ obj:setValue(6)
 Counter-only methods:
 
 ```lua
-counter:increment()   / counter:decrement()   -- value ± 1
+counter:increment()
+counter:decrement()   -- value ± 1
 counter:clear()                                -- back to 0
 ```
 
@@ -153,7 +164,8 @@ Clock-only methods:
 clock:startStopwatch()    -- reset to 0, count up, run
 clock:startTimer(90)      -- set 90 s, count down, run
 clock:pauseStart()        -- toggle running
-clock:isRunning()         / clock:isCountingDown()
+clock:isRunning()
+clock:isCountingDown()
 clock:clear()             -- 0 and stopped
 ```
 
@@ -206,31 +218,50 @@ obj:clearEffects()                         -- stop everything attached to this o
 obj:playSound("assets/clack.ogg", { volume = 0.8 })  -- one-shot, positioned at the object
 ```
 
+To control an effect already authored on a model, use the slot's **Key** from the Workshop's Effects pane:
+
+```lua
+local enabled = obj:getEffectEnabled("eyes")   -- boolean, or nil for an unknown slot
+obj:setEffectEnabled("eyes", true)             -- true when the slot exists
+```
+
+The slot's enabled state is saved with the object.
+
 ## Home pose and drag behaviour
 
 The same per-object properties the Properties dialog exposes:
 
 ```lua
 -- Home pose (captured at spawn): what obj:reset() returns to.
-obj:getDefaultPosition()  / obj:setDefaultPosition(x, y, z)
-obj:getDefaultRotation()  / obj:setDefaultRotation(x, y, z)
+obj:getDefaultPosition()
+obj:setDefaultPosition(x, y, z)
+obj:getDefaultRotation()
+obj:setDefaultRotation(x, y, z)
 
 -- Pickup rotation: with rotateOnGrab on, the object snaps to grabRotation when grabbed.
-obj:getGrabRotation()     / obj:setGrabRotation(x, y, z)
-obj:getRotateOnGrab()     / obj:setRotateOnGrab(true)
+obj:getGrabRotation()
+obj:setGrabRotation(x, y, z)
+obj:getRotateOnGrab()
+obj:setRotateOnGrab(true)
 
 -- Stand a toppled figure back up on pickup WITHOUT turning it (heading kept).
 -- Default on for things with an "up"; off for cards, decks, dice, coins.
-obj:getUprightOnGrab()    / obj:setUprightOnGrab(false)
+obj:getUprightOnGrab()
+obj:setUprightOnGrab(false)
 
 -- Drag behaviour:
-obj:getCollideWhileDragging() / obj:setCollideWhileDragging(true)  -- default false
-obj:getLiftOverObjects()      / obj:setLiftOverObjects(false)      -- default true
-obj:getLiftHeight()           / obj:setLiftHeight(0.15)            -- metres; -1 = global
+obj:getCollideWhileDragging()
+obj:setCollideWhileDragging(true)  -- default false
+obj:getLiftOverObjects()
+obj:setLiftOverObjects(false)      -- default true
+obj:getLiftHeight()
+obj:setLiftHeight(0.15)            -- metres; -1 = global
 
 -- Surfaces and hands:
-obj:getDrawable()   / obj:setDrawable(true)   -- the drawing tool may draw on it
-obj:getHandable()   / obj:setHandable(true)   -- hand zones may hold it
+obj:getDrawable()
+obj:setDrawable(true)   -- the drawing tool may draw on it
+obj:getHandable()
+obj:setHandable(true)   -- hand zones may hold it
 ```
 
 ## Queries
@@ -241,7 +272,7 @@ obj:objectBelow()       -- the object it rests on, or nil
 obj:objectAbove()       -- the object resting on it, or nil
 obj:heldBy()            -- player id holding it, or nil
 obj:isFaceDown()        -- cards/decks: boolean; nil for other kinds
-obj:getZones()          -- scripting zones currently containing this object
+obj:getZones()          -- scripting and table-plan zones containing this object
 ```
 
 ## Tags
@@ -249,7 +280,8 @@ obj:getZones()          -- scripting zones currently containing this object
 Tags are shared metadata every script can see; they persist with the snapshot and drive zone filters, snap-point filters and `tw.getObjectsWithTag`.
 
 ```lua
-obj:addTag("enemy")     / obj:removeTag("enemy")
+obj:addTag("enemy")
+obj:removeTag("enemy")
 obj:hasTag("enemy")     -- boolean
 obj:getTags()           -- list of strings
 obj:setTags({"enemy", "boss"})   -- replace the whole set
@@ -262,12 +294,15 @@ obj:hasMatchingTag(other)        -- any tag in common with another object
 Vars hold primitives (number / string / boolean; `nil` erases). Tables carry whole nested structures, stored **by value** — `getTable` returns an independent copy each call, so mutate-then-`setTable` to write back. Both are visible to every script and survive snapshots and rollback.
 
 ```lua
-obj:setVar("hp", 10)          / obj:getVar("hp")
+obj:setVar("hp", 10)
+obj:getVar("hp")
 obj:setTable("cfg", { hp = 10, items = {"sword"} })
 obj:getTable("cfg")           -- a fresh copy
 obj:setTable("cfg", nil)      -- clear
 obj:call("fnName", a, b)      -- call a global function in that object's script
 ```
+
+`obj:call` passes primitive arguments between script states and returns the first primitive result. Use shared vars or tables when you need to exchange a structured value.
 
 > **Persistence and time travel.** Snapshots (and the Time Machine rollback) store a script's **data**: source, enabled flag, name/tags, vars and tables. A live Lua VM can't be frozen, so on restore the source re-runs to rebuild handlers and the saved vars are re-injected. Keep state that must survive a rollback in `setVar`/`setTable` (or `onSave`, see the [overview](/docs/scripting#persisting-state)); a bare global or a closure upvalue won't round-trip.
 
@@ -288,7 +323,8 @@ A container is a **property**, not a kind: a deck is one, and any object can be 
 box:count()                  -- entries (alias getQuantity)
 box:getObjects()             -- deck: { {index, code, name}, ... }
                              -- bag:  { {index, name, kind, guid}, ... }
-box:shuffle()                / box:randomize()
+box:shuffle()
+box:randomize()
 box:putObject(obj)           -- deck: merge (returns the surviving stack);
                              -- bag: swallow the object (returns the bag)
 box:takeObject()             -- the top entry; returns its handle
@@ -305,26 +341,36 @@ Deck/card specifics:
 
 ```lua
 deck:deal(n)                     -- deal n cards onto the table
-deck:deal(n, player)             -- ...into that player's grip
+deck:deal(n, player)             -- legacy: draws and grabs the cards for that player
 deck:dealToHand(player, n)       -- draw n cards (default 1) concealed into a hand
 deck:dealToColorWithOffset(offset, flip, player)  -- top card at the player's seat
                                  -- + offset; face up if flip; returns the handle
 deck:cut(n)                      -- n cards off the top; returns new handles
 deck:split(n)                    -- split into n piles; returns new handles
 deck:group()                     -- gather the touching pile into one face-down deck
+deck:spread()                    -- fan out the deck face up; returns true when queued
+deck:spread(false)               -- face down; use on a separate deck
 deck:search(player, function(index, code)   -- private search window for that player
   if index then print("picked entry", index, "code", code) end
 end)
 card:group()                     -- also works from a loose card: collects its pile
 ```
 
+Spread consumes the source deck when queued. The cards arrive in order over a few seconds with the original dimensions and artwork, including a distinct back per card. `tryDraw(player)` can veto the operation. Lua and MCP authoring use player ID `0` in deck callbacks.
+
+For a live hand, `object:putInHand(playerId)` moves a handable object to the chosen real player. It returns false if the hand is unavailable or `tryEnterHand(owner)` refuses it. `object:playFromHand(false)` plays it face down at the owner's seat; omit the argument for face up. Both paths trigger the same [hand events](/docs/scripting-events#deck-card-and-container-events) as the table controls.
+
 Card `code` is `1..52`: `(suit * 13) + rank + 1` with suits clubs/diamonds/hearts/spades and ranks ace, 2..10, J, Q, K.
+
+Use `card:setCardFormat("tarot")` or `deck:setCardFormat("tarot", true)` to set the footprint to a standard size. The optional second argument rotates the format to landscape. Supported keys are `poker`, `euro-poker`, `bridge`, `mini`, `tarot`, `square` and `large`. The method returns a boolean and keeps the current thickness.
 
 Bag flags:
 
 ```lua
-bag:setInfinite(true)     / bag:isInfinite()      -- taking hands out copies
-bag:setRandomOrder(true)  / bag:isRandomOrder()   -- unaimed takes draw at random
+bag:setInfinite(true)
+bag:isInfinite()      -- taking hands out copies
+bag:setRandomOrder(true)
+bag:isRandomOrder()   -- unaimed takes draw at random
 ```
 
 An object that enters a bag is serialized whole — skin, physics, script, vars, guid — and comes back out as the same object. Copies from an infinite bag get fresh guids and names. Container events and vetoes (`tryEnterContainer`, `tryDraw`, `onObjectEnterContainer`, `onObjectLeaveContainer`) are listed in [Events](/docs/scripting-events).
@@ -339,7 +385,8 @@ obj:setSnapPoints({
   { position = {x = -0.2, y = 0, z = 0}, rotation = 90, range = 0.08,
     tags = {"card"} },                                                 -- tag-filtered
 })
-obj:getSnapPoints()      / obj:clearSnapPoints()
+obj:getSnapPoints()
+obj:clearSnapPoints()
 ```
 
 Table-global snap points live on `tw.setSnapPoints` — see the [world reference](/docs/scripting-world#snap-points).
@@ -387,11 +434,14 @@ tab:setElementText("title", "Round 3")
 -- Table-authored scripts may migrate their own document without losing state.
 local document = tab:getTabletDocument()
 tab:setTabletDocument(document)
-tab:setElementValue("score", 42)      / tab:getElementValue("score")
-tab:setElementTooltip("score", "VP")  / tab:getElementTooltip("score")
+tab:setElementValue("score", 42)
+tab:getElementValue("score")
+tab:setElementTooltip("score", "VP")
+tab:getElementTooltip("score")
 tab:setListEntries("log", { "Alice: 3", "Bob: 5" })
 tab:addListEntry("log", "Carol: 2")
-tab:clearListEntries("log")           / tab:getListEntries("log")
+tab:clearListEntries("log")
+tab:getListEntries("log")
 ```
 
 Spawn a tablet with a document via `tw.spawnTablet` — see the [world reference](/docs/scripting-world#spawning).

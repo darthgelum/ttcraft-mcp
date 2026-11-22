@@ -10,7 +10,7 @@ Copy-paste starting points. Each recipe is a complete script for the object name
 
 ## A deal button
 
-Attach to any object sitting next to a deck; clicking it deals one card to the clicking player.
+Attach to a button object and place it directly on top of a deck so `objectBelow()` can find the deck. Clicking the button deals one card to the clicking player.
 
 ```lua
 function onClick(player)
@@ -27,7 +27,7 @@ Global script: a ribbon button rolls every die, then a condition-timer waits for
 
 ```lua
 function onLoad()
-  tw.ribbon.addItem("table", "Dice", { button = "Roll all", icon = "dice", onClick = "rollAll" })
+  tw.ribbon.addItem("home", "Dice", { button = "Roll all", icon = "dice", onClick = "rollAll" })
 end
 
 function rollAll(player)
@@ -71,7 +71,7 @@ function onObjectLeaveZone(zone, obj) refresh(zone) end
 
 ## A custom d3 from any object
 
-Rotation values turn any prop into a die; `randomize` (the R key) tosses it.
+A click chooses one of three equally likely results and sets the prop to the corresponding rotation. Give the prop stable poses that match the rotations you define.
 
 ```lua
 function onLoad()
@@ -82,10 +82,10 @@ function onLoad()
   })
 end
 
-function onRandomize(player)
-  Wait.condition(function()
-    tw.broadcastToAll("It landed on " .. tostring(self:getRotationValue()))
-  end, function() return self:getValue() ~= nil end, 8)
+function onClick(player)
+  local result = math.random(1, 3)
+  self:setValue(result)
+  tw.broadcastToAll("Rolled " .. result)
 end
 ```
 
@@ -100,58 +100,65 @@ end
 
 function onPlayerTurn(cur, prev)
   local p = tw.getPlayer(cur)
-  if p then tw.broadcastToAll(p:getName() .. "'s turn") end
+  if p then tw.broadcastToAll(p:getDisplayName() .. "'s turn") end
 end
 
 function onPlayerAction(player, action, target)
+  if player == 0 then return end -- table automation
   local p = tw.getPlayer(player)
+  if action == "flip" and target and target:guid() == "score" then return false end
   if p and p:isHost() then return end            -- managers bypass the rules
-  if target and target:guid() == "score" then return false end
-  if Turns.isEnabled() and player ~= Turns.current() then return false end
+  local current = Turns.current()
+  if Turns.isEnabled() and current ~= 0 and player ~= current then return false end
 end
 ```
 
 ## Owner-only pieces
 
-Object script: only the player recorded in the `owner` var may pick it up or flip it.
+Object script: the first player to place the piece claims it. The claim lasts for this script instance. The numeric player id is a live table id.
 
 ```lua
+local owner
+
 local function isOwner(player)
-  return self:getVar("owner") == nil or self:getVar("owner") == player
+  return owner == nil or owner == player
 end
 
 function tryGrab(player) return isOwner(player) end
 function tryFlip(player) return isOwner(player) end
 
 function onDrop(player)
-  if self:getVar("owner") == nil then
-    self:setVar("owner", player)     -- first to place it claims it
-  end
+  if player ~= 0 and owner == nil then owner = player end
 end
 ```
 
 ## Templated spawning
 
-Serialize a fully dressed object once, stamp copies later — the snapshot keeps the skin, script and contents.
+Keep this script on a separate controller object. Give the object to copy the GUID alias `goblin-template`. Its snapshot carries the skin, script and contents.
 
 ```lua
--- On the template object, e.g. from its context menu:
 function onLoad()
   self:addContextMenuItem("Save as template", "save")
   tw.addHotkey("g", "spawnOne", "Spawn goblin")
 end
 
 function save(player)
-  tw.store("goblin", self:getJSON())
-  tw.getPlayer(player):print("Template saved.")
+  local template = tw.getObjectFromGUID("goblin-template")
+  local p = tw.getPlayer(player)
+  if not template then
+    if p then p:print("Template goblin-template is missing.") end
+    return
+  end
+  tw.store("goblin", template:getJSON())
+  if p then p:print("Template saved.") end
 end
 
 function spawnOne(player)
   local json = tw.get("goblin")
-  if json then
-    local p = tw.getPlayer(player):getPointerPosition() or Vector(0, 0.3, 0)
-    tw.spawnObjectJSON({ json = json, position = {x = p.x, y = 0.3, z = p.z} })
-  end
+  local p = tw.getPlayer(player)
+  if not json or not p then return end
+  local cursor = p:getPointerPosition() or Vector(0, 0.3, 0)
+  tw.spawnObjectJSON({ json = json, position = {x = cursor.x, y = 0.3, z = cursor.z} })
 end
 ```
 

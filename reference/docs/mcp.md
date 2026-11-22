@@ -68,8 +68,9 @@ Neither connecting nor restarting MCP closes the shared game table.
 > List my running TTCraft tables. Ask which one to use, connect to it, and
 > describe the scene and available scripting tools before changing anything.
 
-If no tables appear, open a table in TTCraft and check your **Manage table**
-permission in its room. If authorization was revoked or expired, authenticate
+If a table is listed as stopped, open it in TTCraft first. If it is missing from
+the list, check your room membership and **Manage table** permission. Practice
+tables are excluded. If authorization was revoked or expired, authenticate
 the connector again. A **401** when opening `/mcp` directly in a browser is
 expected: this is an authenticated protocol endpoint, not a web page.
 
@@ -84,7 +85,7 @@ reports in the [GitHub repository](https://github.com/darthgelum/ttcraft-mcp).
 
 Copy this message into your assistant:
 
-> Set up TTCraft MCP using https://ttcraft.net/docs/mcp-setup.md . Install it on
+> Set up TTCraft MCP using the [agent setup guide](https://ttcraft.net/docs/mcp-setup.md). Install it on
 > this computer and configure this client, preserving my existing MCP servers.
 > Verify that the tools load, help me sign in through the browser, then list my
 > running tables. Ask me which table to use before changing anything.
@@ -102,7 +103,7 @@ Install [Node.js LTS](https://nodejs.org/en/download) if needed, then open a ter
 
 ```sh
 node --version
-npm install --global https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
+npm install --global https://ttcraft.net/downloads/ttcraft-mcp-0.1.3.tgz
 ttcraft-mcp setup
 ```
 
@@ -115,7 +116,7 @@ On Windows, if PowerShell blocks `npm.ps1` or `ttcraft-mcp.ps1`, use `npm.cmd` a
 
 This release is distributed directly by TTCraft as a versioned npm archive.
 Use the full URL above; the unqualified npm registry name `ttcraft-mcp` is not
-the distribution channel. The [SHA-256 file](/downloads/ttcraft-mcp-0.1.2.tgz.sha256)
+the distribution channel. The [SHA-256 file](/downloads/ttcraft-mcp-0.1.3.tgz.sha256)
 is available for download verification.
 
 ### Install without administrator access
@@ -127,14 +128,14 @@ you own. Administrator access is unnecessary.
 
 ```powershell
 $mcpDir = Join-Path $HOME '.ttcraft-tools'
-npm.cmd install --prefix "$mcpDir" https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
+npm.cmd install --prefix "$mcpDir" https://ttcraft.net/downloads/ttcraft-mcp-0.1.3.tgz
 node "$mcpDir/node_modules/ttcraft-mcp/dist/index.js" setup
 ```
 
 **macOS or Linux:**
 
 ```sh
-npm install --prefix "$HOME/.ttcraft-tools" https://ttcraft.net/downloads/ttcraft-mcp-0.1.2.tgz
+npm install --prefix "$HOME/.ttcraft-tools" https://ttcraft.net/downloads/ttcraft-mcp-0.1.3.tgz
 node "$HOME/.ttcraft-tools/node_modules/ttcraft-mcp/dist/index.js" setup
 ```
 
@@ -191,7 +192,7 @@ Open your game room on [TTCraft](https://ttcraft.net), start its table, then ask
 
 The assistant calls `auth_begin` and gives you a TTCraft approval link and a short
 code. Open that link, sign in if necessary, and approve the device. The assistant
-then checks `auth_poll` and lists tables. **Your password stays in the browser.**
+then checks `auth_poll` and lists tables. Complete approval in your browser.
 
 You can also sign in from the terminal with `ttcraft-mcp login`, then restart or
 reconnect the assistant's MCP server so it reads the saved credential.
@@ -216,28 +217,44 @@ Give the assistant a concrete goal and any visual or gameplay constraints:
 
 > Export a backup to a local ZIP before changing the table layout.
 
-The server provides **40 MCP tools** and a searchable reference for **144 native
-table commands**. The assistant discovers exact arguments from tool schemas.
+The assistant discovers tools and their arguments from `tools/list`. Use
+`commands_search` and `command_describe` for the native table command reference.
+The reference is bundled with MCP, so check the running table when features differ
+between releases.
 
 | Task | Tools to start with |
 | --- | --- |
 | Connect and inspect | `auth_status`, `tables_list`, `table_connect`, `state_read`, `objects_list` |
-| Build and arrange | `commands_search`, `command_describe`, `command_run`, `blueprint_apply` |
+| Build and arrange | `objects_spawn`, `objects_move`, `table_command`, `blueprint_apply` |
 | Lua scripts and errors | `objects_list`, `script_read`, `script_write`, `console_read` |
 | Templates and media | `library_list`, `asset_upload`, `assets_list` |
 | Backups and modules | `archives_export`, `archives_import`, `modules_import` |
+| Transfer files with hosted MCP | `files_write`, `files_read` |
 | Publish a module | `modules_options`, `modules_list`, `modules_publish` |
 | Built-in documentation | `docs_search`, `docs_read` |
 
 Changes affect the shared table. Archive import replaces the current world;
 module import adds content. Export a backup before a large or destructive change.
-An assistant should inspect the state after an uncertain timeout before deciding
-what to do next, because automatically repeating a creation could duplicate it.
+
+MCP connects as an authoring tool with no cursor, seat or hand. Use
+`objects_move` for placement and `table_command` for Shuffle, Gather or
+Spread. For example, send `command: "spread"` with
+`arguments: {id: 25, mode: "facedown"}` after resolving the deck's current
+runtime ID. For a test deal, use `command: "deal"` with
+`arguments: {id: 25, n: 1, players: [2]}`. This requires Edit permission
+and explicitly names the live, seated recipients. Get player IDs from
+`state_read` with `section: "players"`.
+
+Some native commands return `processed_unverified`. That means the table processed
+the command stream. Check the resulting state to see whether the action took effect.
+If a mutation times out, reconnect and inspect the state before retrying to avoid
+duplicating an operation that already took effect.
 
 Module publication supports listing text, a cover and up to twelve screenshots.
-Use a dry run first; publishing does not change the source table. A local clean
-package can be published instead of the live snapshot. After an uncertain network
-result, inspect `modules_list` before retrying.
+Use `modules_options` for the current choices and preview with a dry run. Publishing
+a live snapshot includes hidden objects and saved character state. To share a clean
+starter module, pass its prepared archive as `package_path`. After an uncertain
+network result, inspect `modules_list` before retrying.
 
 For table behaviour and Lua, see [scripting](/docs/scripting),
 [table plans](/docs/table-plan) and [archives](/docs/table-archives).
@@ -249,7 +266,7 @@ For table behaviour and Lua, see [scripting](/docs/scripting),
 | No TTCraft tools after installation | Add the MCP entry to the client you are actually using, then reload MCP or restart it. Running `setup` alone only prints configuration. |
 | Node or the launcher is not found | Reopen the terminal after installing Node. Use the absolute executable and script paths printed by `setup`. |
 | Global installation says permission denied | Use the private-folder installation above. |
-| Signed out | Call `auth_begin`, approve the browser code, then `auth_poll`. Do not paste access tokens into chat. |
+| Signed out | For hosted MCP, authenticate the connector in its settings. For local stdio, use `auth_begin`, approve the device in your browser, then check `auth_poll`. |
 | Table missing from the list | Start the room's table and check your **Manage table** permission. Practice/tutorial tables are excluded. |
 | MCP requests a table update or safe restart | The running instance predates tool sessions. Save it, update its server and restart the table through the room controls. MCP refuses before opening a connection, preserving the browser session. |
 | A tool times out | Reconnect and inspect the current state before retrying a mutation. For large transfers, use a longer client tool timeout. |

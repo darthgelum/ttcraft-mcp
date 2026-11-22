@@ -14,8 +14,9 @@ form is available on its Textures tab. Existing chips and pawn bases are unchang
 
 The front defines the contour. The back can copy the front, mirror it, or use an
 independent image. Both sides use the same physical shape and top edge. Width
-and height are millimetres before the object's ordinary scale; thickness defaults
-to 2 mm and is clamped to 0.8–20 mm. Use the standard material editor for paper,
+and height are millimetres before the object's ordinary scale. Each is limited
+to 2–500 mm and defaults to 32 mm. Thickness defaults to 2 mm and is clamped
+to 0.8–20 mm. Use the standard material editor for paper,
 plastic, metal, roughness and clear coat. Edge colour is separate; material tint
 affects the edge without staining printed faces.
 
@@ -67,9 +68,11 @@ rotation, lock, script, material and scale survive a geometry change. The bottom
 surface is retained while thickness changes. Gravity defaults on at creation;
 explicit physics settings continue to use the normal properties API.
 
-In MCP use `objects_spawn` with `spec.kind: "token"`, or `table_command` with
-`tokenset` after `command_describe`. MCP resolves object GUIDs in the usual way.
-The library, bags, snapshots and game archives carry both images and the outline.
+In MCP, pass `kind: "token"`, `token` and the material fields inside
+`objects_spawn.spec`. Pass the location separately in `position`. To edit a token
+with `table_command`, resolve the GUID with `object_read` first, then send its
+current numeric `id` in the `tokenset` arguments. The library, bags, snapshots
+and game archives carry both image references and the outline.
 
 ## Authoring an alpha contour through the API
 
@@ -94,4 +97,6 @@ parts, 32 vertices per part. Degenerate, non-finite, out-of-range or nonconvex
 parts are rejected. The server derives metric collider dimensions from this
 record on spawn, edit, clone and restore; a separate caller-supplied collider
 cannot override token geometry. Increase `detail_mm` to simplify an overly
-complex outline; `threshold` is in [0.05,0.95].
+complex outline in Workbench or regenerate the contour with the new detail
+tolerance before sending it from your tool. The server stores `detail_mm`
+in the range `0.05–3` and `threshold` in `0.05–0.95`.
